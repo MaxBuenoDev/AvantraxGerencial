@@ -1,0 +1,5 @@
+{
+  "name": "AVANTRAX Dashboard",
+  "description": "Dashboard gerencial fullscreen para TV (Digital Signage) com processamento de dados Excel em tempo real.",
+  "requestFramePermissions": []
+}

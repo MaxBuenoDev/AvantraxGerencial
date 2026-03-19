@@ -1,0 +1,1093 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AVANTRAX | Dashboard Gerencial</title>
+    
+    <!-- BIBLIOTECAS VIA CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --bg-dark: #0A0F1E;
+            --bg-card: rgba(16, 24, 48, 0.7);
+            --accent-cyan: #00BFFF;
+            --accent-blue: #007BFF;
+            --text-main: #E0E6ED;
+            --text-dim: #94A3B8;
+            --glass-border: rgba(255, 255, 255, 0.1);
+            --success: #10B981;
+            --warning: #F59E0B;
+            --danger: #EF4444;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none;
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            font-family: 'Inter', sans-serif;
+            overflow: hidden;
+            width: 1920px;
+            height: 1080px;
+            position: relative;
+        }
+
+        /* BACKGROUND ANIMATION */
+        #particles-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            opacity: 0.4;
+        }
+
+        /* UPLOAD OVERLAY */
+        #upload-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(10, 15, 30, 0.95);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            transition: opacity 0.5s ease;
+        }
+
+        .upload-container {
+            width: 800px;
+            padding: 60px;
+            background: var(--bg-card);
+            border: 2px dashed var(--accent-cyan);
+            border-radius: 24px;
+            text-align: center;
+            backdrop-filter: blur(20px);
+            box-shadow: 0 0 50px rgba(0, 191, 255, 0.1);
+        }
+
+        .upload-container h1 {
+            font-size: 3rem;
+            font-weight: 800;
+            margin-bottom: 1rem;
+            letter-spacing: -1px;
+            color: var(--accent-cyan);
+        }
+
+        .upload-container p {
+            color: var(--text-dim);
+            font-size: 1.2rem;
+            margin-bottom: 3rem;
+        }
+
+        .file-inputs {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 40px;
+        }
+
+        .file-box {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 30px;
+            border-radius: 16px;
+            border: 1px solid var(--glass-border);
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .file-box:hover {
+            background: rgba(0, 191, 255, 0.1);
+            border-color: var(--accent-cyan);
+        }
+
+        .file-box.loaded {
+            border-color: var(--success);
+            background: rgba(16, 185, 129, 0.1);
+        }
+
+        .file-box i {
+            display: block;
+            font-size: 2rem;
+            margin-bottom: 10px;
+        }
+
+        .btn-start {
+            background: linear-gradient(90deg, var(--accent-blue), var(--accent-cyan));
+            color: white;
+            border: none;
+            padding: 15px 50px;
+            font-size: 1.2rem;
+            font-weight: 700;
+            border-radius: 50px;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            box-shadow: 0 10px 20px rgba(0, 123, 255, 0.3);
+            transition: transform 0.2s ease;
+        }
+
+        .btn-start:hover {
+            transform: scale(1.05);
+        }
+
+        .btn-start:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* DASHBOARD LAYOUT */
+        #dashboard {
+            display: none;
+            padding: 20px;
+            height: 100%;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        /* HEADER */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 20px;
+            background: var(--bg-card);
+            border-radius: 16px;
+            border: 1px solid var(--glass-border);
+            backdrop-filter: blur(10px);
+        }
+
+        .logo-area {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .logo-area h2 {
+            font-weight: 800;
+            font-size: 1.8rem;
+            background: linear-gradient(to right, #fff, var(--accent-cyan));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .status-badges {
+            display: flex;
+            gap: 15px;
+        }
+
+        .badge {
+            padding: 5px 15px;
+            border-radius: 50px;
+            font-size: 0.8rem;
+            font-weight: 700;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid var(--glass-border);
+        }
+
+        .badge.active {
+            color: var(--success);
+            border-color: var(--success);
+        }
+
+        .clock-area {
+            text-align: right;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        #current-time {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--accent-cyan);
+        }
+
+        #current-date {
+            font-size: 0.9rem;
+            color: var(--text-dim);
+        }
+
+        /* KPI STRIP */
+        .kpi-container {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 15px;
+        }
+
+        .kpi-card {
+            background: var(--bg-card);
+            padding: 20px;
+            border-radius: 16px;
+            border: 1px solid var(--glass-border);
+            text-align: center;
+            backdrop-filter: blur(10px);
+            transition: transform 0.3s ease;
+        }
+
+        .kpi-card:hover {
+            transform: translateY(-5px);
+            border-color: var(--accent-cyan);
+        }
+
+        .kpi-label {
+            font-size: 0.75rem;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 10px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .kpi-value {
+            font-size: 2.2rem;
+            font-weight: 800;
+            color: white;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .kpi-value.cyan { color: var(--accent-cyan); }
+        .kpi-value.warning { color: var(--warning); }
+        .kpi-value.danger { color: var(--danger); }
+
+        /* MAIN CONTENT */
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1fr 1.2fr 1fr;
+            gap: 20px;
+            flex-grow: 1;
+        }
+
+        .column {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .card {
+            background: var(--bg-card);
+            border-radius: 16px;
+            border: 1px solid var(--glass-border);
+            padding: 20px;
+            backdrop-filter: blur(10px);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            border-bottom: 1px solid var(--glass-border);
+            padding-bottom: 10px;
+        }
+
+        .card-title {
+            font-size: 0.9rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--accent-cyan);
+        }
+
+        /* CENTER HIGHLIGHT */
+        .center-highlight {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 40px;
+        }
+
+        .big-number-label {
+            font-size: 1rem;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            margin-bottom: 10px;
+        }
+
+        .big-number {
+            font-size: 8rem;
+            font-weight: 800;
+            line-height: 1;
+            margin-bottom: 20px;
+            text-shadow: 0 0 30px rgba(0, 191, 255, 0.4);
+        }
+
+        /* TABLES */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.8rem;
+        }
+
+        th {
+            text-align: left;
+            color: var(--text-dim);
+            padding: 8px;
+            border-bottom: 1px solid var(--glass-border);
+        }
+
+        td {
+            padding: 8px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .status-tag {
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            font-weight: 700;
+        }
+
+        .tag-danger { background: rgba(239, 68, 68, 0.2); color: var(--danger); }
+        .tag-warning { background: rgba(245, 158, 11, 0.2); color: var(--warning); }
+
+        /* FOOTER */
+        footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 25px;
+            background: var(--bg-card);
+            border-radius: 16px;
+            border: 1px solid var(--glass-border);
+        }
+
+        .progress-area {
+            flex-grow: 1;
+            margin: 0 40px;
+        }
+
+        .progress-bar-bg {
+            height: 12px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent-blue), var(--accent-cyan));
+            width: 0%;
+            transition: width 1s ease-out;
+            box-shadow: 0 0 15px var(--accent-cyan);
+        }
+
+        .progress-label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.8rem;
+            margin-bottom: 5px;
+        }
+
+        .delivery-top {
+            display: flex;
+            gap: 20px;
+            font-size: 0.8rem;
+        }
+
+        .delivery-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .delivery-item span { color: var(--accent-cyan); font-weight: 700; }
+
+        /* UTILS */
+        .refresh-btn {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 50px;
+            height: 50px;
+            background: var(--bg-card);
+            border: 1px solid var(--glass-border);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            z-index: 500;
+            transition: all 0.3s;
+            color: var(--accent-cyan);
+            font-size: 1.5rem;
+        }
+
+        .refresh-btn:hover {
+            transform: rotate(180deg);
+            background: var(--accent-cyan);
+            color: var(--bg-dark);
+        }
+
+        .chart-container {
+            position: relative;
+            height: 180px;
+            width: 100%;
+        }
+
+        .dep-bars {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            width: 100%;
+        }
+
+        .dep-bar-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .dep-label { width: 40px; font-size: 0.8rem; font-weight: 700; }
+        .dep-track { flex-grow: 1; height: 8px; background: rgba(255,255,255,0.05); border-radius: 4px; overflow: hidden; }
+        .dep-fill { height: 100%; background: var(--accent-cyan); width: 0%; transition: width 1s ease; }
+        .dep-val { width: 50px; font-size: 0.8rem; text-align: right; }
+
+    </style>
+</head>
+<body>
+
+    <canvas id="particles-canvas"></canvas>
+
+    <!-- TELA DE UPLOAD -->
+    <div id="upload-overlay">
+        <div class="upload-container">
+            <h1>AVANTRAX</h1>
+            <p>SISTEMA DE GESTÃO LOGÍSTICA EM TEMPO REAL</p>
+            
+            <div class="file-inputs">
+                <div class="file-box" id="box-embarcados" onclick="document.getElementById('input-embarcados').click()">
+                    <i>📦</i>
+                    <strong>embarcados.xlsx</strong>
+                    <span id="label-embarcados">Clique para selecionar</span>
+                    <input type="file" id="input-embarcados" accept=".xlsx" hidden>
+                </div>
+                <div class="file-box" id="box-inventario" onclick="document.getElementById('input-inventario').click()">
+                    <i>🏗️</i>
+                    <strong>inventario_de_patio.xlsx</strong>
+                    <span id="label-inventario">Clique para selecionar</span>
+                    <input type="file" id="input-inventario" accept=".xlsx" hidden>
+                </div>
+            </div>
+
+            <button class="btn-start" id="btn-start" disabled>INICIAR DASHBOARD</button>
+        </div>
+    </div>
+
+    <!-- BOTÃO DE ATUALIZAÇÃO -->
+    <div class="refresh-btn" id="btn-refresh" title="Atualizar Dados">↻</div>
+
+    <!-- DASHBOARD PRINCIPAL -->
+    <div id="dashboard">
+        
+        <header>
+            <div class="logo-area">
+                <h2>AVANTRAX</h2>
+                <div style="width: 2px; height: 30px; background: var(--glass-border);"></div>
+                <span style="letter-spacing: 3px; font-size: 0.9rem; font-weight: 300;">DASHBOARD GERENCIAL</span>
+            </div>
+            <div class="status-badges">
+                <div class="badge active" id="badge-embarcados">EMBARCADOS ✓</div>
+                <div class="badge active" id="badge-inventario">INVENTÁRIO ✓</div>
+                <div class="badge" id="last-update">ÚLTIMA ATUALIZAÇÃO: --:--</div>
+            </div>
+            <div class="clock-area">
+                <div id="current-time">00:00:00</div>
+                <div id="current-date">QUINTA, 19 DE MARÇO DE 2026</div>
+            </div>
+        </header>
+
+        <div class="kpi-container">
+            <div class="kpi-card">
+                <div class="kpi-label">Pátio (Estoque)</div>
+                <div class="kpi-value cyan" id="kpi-patio">0</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">Embarcados Total</div>
+                <div class="kpi-value" id="kpi-embarcados">0</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">Aguardando Expedição</div>
+                <div class="kpi-value" id="kpi-aguardando">0</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">Bloqueios Ativos</div>
+                <div class="kpi-value danger" id="kpi-bloqueios">0</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">Aging Médio Pátio</div>
+                <div class="kpi-value warning" id="kpi-aging">0d</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">Transportadoras</div>
+                <div class="kpi-value" id="kpi-transp">0</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">Veículos Críticos</div>
+                <div class="kpi-value danger" id="kpi-criticos">0</div>
+            </div>
+        </div>
+
+        <div class="main-grid">
+            <!-- COLUNA ESQUERDA: INVENTÁRIO -->
+            <div class="column">
+                <div class="card" style="height: 300px;">
+                    <div class="card-header"><span class="card-title">Status de Faturamento</span></div>
+                    <div class="chart-container">
+                        <canvas id="chart-stat-fat"></canvas>
+                    </div>
+                </div>
+                <div class="card" style="height: 300px;">
+                    <div class="card-header"><span class="card-title">Top 5 Modelos em Pátio</span></div>
+                    <div class="chart-container">
+                        <canvas id="chart-modelos-patio"></canvas>
+                    </div>
+                </div>
+                <div class="card" style="flex-grow: 1;">
+                    <div class="card-header"><span class="card-title">Veículos Bloqueados</span></div>
+                    <div style="overflow-y: auto; max-height: 200px;">
+                        <table id="table-bloqueios">
+                            <thead>
+                                <tr>
+                                    <th>Chassi</th>
+                                    <th>Motivo</th>
+                                    <th>Aging</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Populado via JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- COLUNA CENTRAL: DESTAQUE -->
+            <div class="column">
+                <div class="card center-highlight" style="flex-grow: 1;">
+                    <div class="big-number-label">Total Veículos no Pátio</div>
+                    <div class="big-number" id="big-total-patio">0</div>
+                    
+                    <div class="dep-bars" id="dep-breakdown">
+                        <!-- GMB -->
+                        <div class="dep-bar-item">
+                            <div class="dep-label">GMB</div>
+                            <div class="dep-track"><div class="dep-fill" id="bar-gmb"></div></div>
+                            <div class="dep-val" id="val-gmb">0</div>
+                        </div>
+                        <!-- 0KM -->
+                        <div class="dep-bar-item">
+                            <div class="dep-label">0KM</div>
+                            <div class="dep-track"><div class="dep-fill" id="bar-0km"></div></div>
+                            <div class="dep-val" id="val-0km">0</div>
+                        </div>
+                        <!-- FZD -->
+                        <div class="dep-bar-item">
+                            <div class="dep-label">FZD</div>
+                            <div class="dep-track"><div class="dep-fill" id="bar-fzd"></div></div>
+                            <div class="dep-val" id="val-fzd">0</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card" style="height: 350px;">
+                    <div class="card-header"><span class="card-title">Heatmap de Aging (Pátio)</span></div>
+                    <div class="chart-container">
+                        <canvas id="chart-aging-heatmap"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- COLUNA DIREITA: EMBARCADOS -->
+            <div class="column">
+                <div class="card" style="height: 300px;">
+                    <div class="card-header"><span class="card-title">Top 5 Transportadoras</span></div>
+                    <div class="chart-container">
+                        <canvas id="chart-top-transp"></canvas>
+                    </div>
+                </div>
+                <div class="card" style="height: 300px;">
+                    <div class="card-header"><span class="card-title">Distribuição TP Venda</span></div>
+                    <div class="chart-container">
+                        <canvas id="chart-tp-venda"></canvas>
+                    </div>
+                </div>
+                <div class="card" style="flex-grow: 1;">
+                    <div class="card-header"><span class="card-title">Aging Embarcados</span></div>
+                    <div class="chart-container">
+                        <canvas id="chart-aging-embarcados"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            <div style="font-size: 0.8rem; font-weight: 700;">META FATURAMENTO</div>
+            <div class="progress-area">
+                <div class="progress-label">
+                    <span id="progress-text">0% do pátio faturado</span>
+                    <span id="progress-percent">0%</span>
+                </div>
+                <div class="progress-bar-bg">
+                    <div class="progress-bar-fill" id="progress-fill"></div>
+                </div>
+            </div>
+            <div class="delivery-top" id="top-destinos">
+                <!-- Populado via JS -->
+            </div>
+            <div style="font-size: 0.7rem; color: var(--text-dim);">AVANTRAX v2.4.0</div>
+        </footer>
+
+    </div>
+
+    <script>
+        /**
+         * <!-- DATA SERVICE -->
+         * Camada preparada para futura integração com API.
+         * Atualmente gerencia o estado global dos dados carregados.
+         */
+        const DataService = {
+            embarcados: [],
+            inventario: [],
+            lastUpdate: null,
+
+            setData(type, data) {
+                this[type] = data;
+                this.lastUpdate = new Date();
+            },
+
+            getStats() {
+                // Cálculos baseados no Inventário
+                const totalPatio = this.inventario.length;
+                const naoFaturados = this.inventario.filter(i => i.STAT_FAT === 'NAO FATURADO').length;
+                const faturadosAguardando = this.inventario.filter(i => i.STAT_FAT === 'FATURADO').length;
+                const bloqueados = this.inventario.filter(i => i['MOTIVO BLOQUEIO'] && i['MOTIVO BLOQUEIO'].trim() !== '');
+                
+                const agingPatioSum = this.inventario.reduce((acc, curr) => acc + (Number(curr.AGING_PATIO) || 0), 0);
+                const agingPatioAvg = totalPatio > 0 ? (agingPatioSum / totalPatio).toFixed(1) : 0;
+                
+                const criticos = this.inventario.filter(i => (Number(i.AGING_PATIO) || 0) > 90).length;
+
+                // Cálculos baseados em Embarcados
+                const totalEmbarcados = this.embarcados.length;
+                const transportadoras = new Set(this.embarcados.map(e => e['NOME TRANSPORTADORA'])).size;
+
+                return {
+                    totalPatio,
+                    naoFaturados,
+                    faturadosAguardando,
+                    bloqueadosCount: bloqueados.length,
+                    bloqueadosList: bloqueados.slice(0, 10),
+                    agingPatioAvg,
+                    totalEmbarcados,
+                    transportadoras,
+                    criticos
+                };
+            }
+        };
+
+        /**
+         * <!-- PARSER -->
+         * Lógica de leitura dos arquivos Excel usando SheetJS.
+         */
+        const Parser = {
+            async parseFile(file) {
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        const data = new Uint8Array(e.target.result);
+                        const workbook = XLSX.read(data, { type: 'array' });
+                        const firstSheetName = workbook.SheetNames[0];
+                        const worksheet = workbook.Sheets[firstSheetName];
+                        const json = XLSX.utils.sheet_to_json(worksheet);
+                        resolve(json);
+                    };
+                    reader.onerror = reject;
+                    reader.readAsArrayBuffer(file);
+                });
+            }
+        };
+
+        /**
+         * <!-- DASHBOARD RENDER -->
+         * População dos componentes e gráficos.
+         */
+        const DashboardRender = {
+            charts: {},
+
+            init() {
+                this.setupClock();
+                this.setupUploadListeners();
+                this.setupRefresh();
+            },
+
+            setupClock() {
+                const updateClock = () => {
+                    const now = new Date();
+                    document.getElementById('current-time').textContent = now.toLocaleTimeString('pt-BR');
+                    
+                    const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+                    document.getElementById('current-date').textContent = now.toLocaleDateString('pt-BR', options).toUpperCase();
+                };
+                setInterval(updateClock, 1000);
+                updateClock();
+            },
+
+            setupUploadListeners() {
+                const inputEmb = document.getElementById('input-embarcados');
+                const inputInv = document.getElementById('input-inventario');
+                const btnStart = document.getElementById('btn-start');
+
+                let embFile = null;
+                let invFile = null;
+
+                inputEmb.onchange = (e) => {
+                    embFile = e.target.files[0];
+                    if (embFile) {
+                        document.getElementById('box-embarcados').classList.add('loaded');
+                        document.getElementById('label-embarcados').textContent = embFile.name;
+                        checkReady();
+                    }
+                };
+
+                inputInv.onchange = (e) => {
+                    invFile = e.target.files[0];
+                    if (invFile) {
+                        document.getElementById('box-inventario').classList.add('loaded');
+                        document.getElementById('label-inventario').textContent = invFile.name;
+                        checkReady();
+                    }
+                };
+
+                const checkReady = () => {
+                    if (embFile && invFile) btnStart.disabled = false;
+                };
+
+                btnStart.onclick = async () => {
+                    btnStart.textContent = "PROCESSANDO...";
+                    btnStart.disabled = true;
+
+                    try {
+                        const dataEmb = await Parser.parseFile(embFile);
+                        const dataInv = await Parser.parseFile(invFile);
+
+                        DataService.setData('embarcados', dataEmb);
+                        DataService.setData('inventario', dataInv);
+
+                        this.renderAll();
+                        
+                        document.getElementById('upload-overlay').style.opacity = '0';
+                        setTimeout(() => {
+                            document.getElementById('upload-overlay').style.display = 'none';
+                            document.getElementById('dashboard').style.display = 'flex';
+                            this.enterFullscreen();
+                        }, 500);
+
+                    } catch (err) {
+                        alert("Erro ao processar arquivos. Verifique o formato.");
+                        console.error(err);
+                        btnStart.disabled = false;
+                        btnStart.textContent = "INICIAR DASHBOARD";
+                    }
+                };
+            },
+
+            setupRefresh() {
+                document.getElementById('btn-refresh').onclick = () => {
+                    document.getElementById('upload-overlay').style.display = 'flex';
+                    document.getElementById('upload-overlay').style.opacity = '1';
+                    document.getElementById('dashboard').style.display = 'none';
+                };
+            },
+
+            enterFullscreen() {
+                if (document.documentElement.requestFullscreen) {
+                    document.documentElement.requestFullscreen().catch(() => {});
+                }
+            },
+
+            renderAll() {
+                const stats = DataService.getStats();
+                
+                // KPIs
+                this.animateValue('kpi-patio', stats.totalPatio);
+                this.animateValue('kpi-embarcados', stats.totalEmbarcados);
+                this.animateValue('kpi-aguardando', stats.faturadosAguardando);
+                this.animateValue('kpi-bloqueios', stats.bloqueadosCount);
+                document.getElementById('kpi-aging').textContent = stats.agingPatioAvg + 'd';
+                this.animateValue('kpi-transp', stats.transportadoras);
+                this.animateValue('kpi-criticos', stats.criticos);
+
+                // Big Number
+                this.animateValue('big-total-patio', stats.totalPatio);
+
+                // Last Update
+                const now = new Date();
+                document.getElementById('last-update').textContent = `ÚLTIMA ATUALIZAÇÃO: ${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+                // Table Bloqueios
+                const tbody = document.querySelector('#table-bloqueios tbody');
+                tbody.innerHTML = '';
+                stats.bloqueadosList.forEach(item => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td>${item.CHASSI || '---'}</td>
+                        <td><span class="status-tag tag-danger">${item['MOTIVO BLOQUEIO']}</span></td>
+                        <td>${item.AGING_PATIO}d</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+
+                // Depósitos Breakdown
+                const deps = { GMB: 0, '0KM': 0, FZD: 0 };
+                DataService.inventario.forEach(i => { if(deps[i.DEP] !== undefined) deps[i.DEP]++; });
+                
+                ['GMB', '0KM', 'FZD'].forEach(d => {
+                    const id = d.toLowerCase();
+                    const val = deps[d];
+                    const perc = stats.totalPatio > 0 ? (val / stats.totalPatio * 100) : 0;
+                    document.getElementById(`bar-${id}`).style.width = perc + '%';
+                    document.getElementById(`val-${id}`).textContent = val;
+                });
+
+                // Footer Progress
+                const faturadosTotal = DataService.inventario.filter(i => i.STAT_FAT === 'FATURADO').length;
+                const percFat = stats.totalPatio > 0 ? Math.round((faturadosTotal / stats.totalPatio) * 100) : 0;
+                document.getElementById('progress-fill').style.width = percFat + '%';
+                document.getElementById('progress-percent').textContent = percFat + '%';
+                document.getElementById('progress-text').textContent = `${faturadosTotal} de ${stats.totalPatio} veículos faturados`;
+
+                // Top Destinos
+                const destinos = {};
+                DataService.inventario.forEach(i => { if(i.LOCAL_ENTREGA) destinos[i.LOCAL_ENTREGA] = (destinos[i.LOCAL_ENTREGA] || 0) + 1; });
+                const topDest = Object.entries(destinos).sort((a,b) => b[1] - a[1]).slice(0, 3);
+                const destContainer = document.getElementById('top-destinos');
+                destContainer.innerHTML = '<span style="color: var(--text-dim)">TOP DESTINOS:</span>';
+                topDest.forEach(([name, count]) => {
+                    const div = document.createElement('div');
+                    div.className = 'delivery-item';
+                    div.innerHTML = `📍 ${name} <span>(${count})</span>`;
+                    destContainer.appendChild(div);
+                });
+
+                this.renderCharts(stats);
+            },
+
+            animateValue(id, end) {
+                const obj = document.getElementById(id);
+                let start = 0;
+                const duration = 1500;
+                const startTime = performance.now();
+
+                const update = (currentTime) => {
+                    const elapsed = currentTime - startTime;
+                    const progress = Math.min(elapsed / duration, 1);
+                    const current = Math.floor(progress * (end - start) + start);
+                    obj.textContent = current.toLocaleString('pt-BR');
+                    if (progress < 1) requestAnimationFrame(update);
+                };
+                requestAnimationFrame(update);
+            },
+
+            renderCharts(stats) {
+                // Limpar gráficos anteriores se existirem
+                Object.values(this.charts).forEach(c => c.destroy());
+
+                const chartConfig = (type, labels, data, colors) => ({
+                    type,
+                    data: {
+                        labels,
+                        datasets: [{
+                            data,
+                            backgroundColor: colors,
+                            borderColor: 'rgba(255,255,255,0.1)',
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { display: false } },
+                        scales: type === 'bar' ? {
+                            y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94A3B8' } },
+                            x: { grid: { display: false }, ticks: { color: '#94A3B8' } }
+                        } : {}
+                    }
+                });
+
+                // 1. Donut Stat Fat
+                const fatData = [
+                    DataService.inventario.filter(i => i.STAT_FAT === 'FATURADO').length,
+                    DataService.inventario.filter(i => i.STAT_FAT === 'NAO FATURADO').length
+                ];
+                this.charts.statFat = new Chart(document.getElementById('chart-stat-fat'), {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['Faturado', 'Não Faturado'],
+                        datasets: [{
+                            data: fatData,
+                            backgroundColor: ['#00BFFF', '#1E293B'],
+                            borderWidth: 0
+                        }]
+                    },
+                    options: {
+                        cutout: '70%',
+                        plugins: { legend: { position: 'bottom', labels: { color: '#E0E6ED', boxWidth: 10 } } }
+                    }
+                });
+
+                // 2. Top 5 Modelos Patio
+                const modelos = {};
+                DataService.inventario.forEach(i => { modelos[i.MODELO] = (modelos[i.MODELO] || 0) + 1; });
+                const topModelos = Object.entries(modelos).sort((a,b) => b[1] - a[1]).slice(0, 5);
+                this.charts.modelos = new Chart(document.getElementById('chart-modelos-patio'), 
+                    chartConfig('bar', topModelos.map(m => m[0].substring(0, 15)), topModelos.map(m => m[1]), '#00BFFF')
+                );
+
+                // 3. Aging Heatmap
+                const agingRanges = { '0-7d': 0, '8-30d': 0, '31-90d': 0, '>90d': 0 };
+                DataService.inventario.forEach(i => {
+                    const a = Number(i.AGING_PATIO) || 0;
+                    if(a <= 7) agingRanges['0-7d']++;
+                    else if(a <= 30) agingRanges['8-30d']++;
+                    else if(a <= 90) agingRanges['31-90d']++;
+                    else agingRanges['>90d']++;
+                });
+                this.charts.agingHeat = new Chart(document.getElementById('chart-aging-heatmap'), {
+                    type: 'bar',
+                    data: {
+                        labels: Object.keys(agingRanges),
+                        datasets: [{
+                            label: 'Veículos',
+                            data: Object.values(agingRanges),
+                            backgroundColor: ['#10B981', '#3B82F6', '#F59E0B', '#EF4444']
+                        }]
+                    },
+                    options: {
+                        indexAxis: 'y',
+                        plugins: { legend: { display: false } },
+                        scales: { x: { grid: { color: 'rgba(255,255,255,0.05)' } }, y: { grid: { display: false } } }
+                    }
+                });
+
+                // 4. Top 5 Transportadoras
+                const transps = {};
+                DataService.embarcados.forEach(e => { transps[e['NOME TRANSPORTADORA']] = (transps[e['NOME TRANSPORTADORA']] || 0) + 1; });
+                const topTransp = Object.entries(transps).sort((a,b) => b[1] - a[1]).slice(0, 5);
+                this.charts.transp = new Chart(document.getElementById('chart-top-transp'), 
+                    chartConfig('bar', topTransp.map(t => t[0].substring(0, 12)), topTransp.map(t => t[1]), '#007BFF')
+                );
+
+                // 5. TP Venda
+                const tpVenda = { VD: 0, TD: 0 };
+                DataService.embarcados.forEach(e => { if(tpVenda[e.TP_VENDA] !== undefined) tpVenda[e.TP_VENDA]++; });
+                this.charts.tpVenda = new Chart(document.getElementById('chart-tp-venda'), {
+                    type: 'pie',
+                    data: {
+                        labels: ['Venda Direta (VD)', 'Transferência (TD)'],
+                        datasets: [{
+                            data: [tpVenda.VD, tpVenda.TD],
+                            backgroundColor: ['#00E5FF', '#007BFF'],
+                            borderWidth: 0
+                        }]
+                    },
+                    options: { plugins: { legend: { position: 'bottom', labels: { color: '#E0E6ED' } } } }
+                });
+
+                // 6. Aging Embarcados
+                const agingEmb = { '0-5d': 0, '6-15d': 0, '16-30d': 0, '>30d': 0 };
+                DataService.embarcados.forEach(e => {
+                    const a = Number(e.AGING) || 0;
+                    if(a <= 5) agingEmb['0-5d']++;
+                    else if(a <= 15) agingEmb['6-15d']++;
+                    else if(a <= 30) agingEmb['16-30d']++;
+                    else agingEmb['>30d']++;
+                });
+                this.charts.agingEmb = new Chart(document.getElementById('chart-aging-embarcados'), 
+                    chartConfig('bar', Object.keys(agingEmb), Object.values(agingEmb), '#3B82F6')
+                );
+            }
+        };
+
+        /**
+         * <!-- ANIMATIONS -->
+         * Partículas de fundo para efeito visual.
+         */
+        const Animations = {
+            init() {
+                const canvas = document.getElementById('particles-canvas');
+                const ctx = canvas.getContext('2d');
+                let particles = [];
+
+                const resize = () => {
+                    canvas.width = window.innerWidth;
+                    canvas.height = window.innerHeight;
+                };
+                window.onresize = resize;
+                resize();
+
+                class Particle {
+                    constructor() {
+                        this.x = Math.random() * canvas.width;
+                        this.y = Math.random() * canvas.height;
+                        this.size = Math.random() * 2 + 1;
+                        this.speedX = Math.random() * 1 - 0.5;
+                        this.speedY = Math.random() * 1 - 0.5;
+                    }
+                    update() {
+                        this.x += this.speedX;
+                        this.y += this.speedY;
+                        if (this.x > canvas.width) this.x = 0;
+                        if (this.x < 0) this.x = canvas.width;
+                        if (this.y > canvas.height) this.y = 0;
+                        if (this.y < 0) this.y = canvas.height;
+                    }
+                    draw() {
+                        ctx.fillStyle = '#00BFFF';
+                        ctx.beginPath();
+                        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                }
+
+                for (let i = 0; i < 100; i++) particles.push(new Particle());
+
+                const animate = () => {
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    particles.forEach(p => {
+                        p.update();
+                        p.draw();
+                    });
+                    requestAnimationFrame(animate);
+                };
+                animate();
+            }
+        };
+
+        // INICIALIZAÇÃO GLOBAL
+        window.onload = () => {
+            Animations.init();
+            DashboardRender.init();
+        };
+
+    </script>
+</body>
+</html>
