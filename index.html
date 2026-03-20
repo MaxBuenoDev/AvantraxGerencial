@@ -22,6 +22,7 @@
             --success: #10B981;
             --warning: #F59E0B;
             --danger: #EF4444;
+            --ui-scale: 1;
         }
 
         * {
@@ -31,24 +32,38 @@
             user-select: none;
         }
 
+        html, body {
+            width: 100%;
+            height: 100%;
+        }
+
         body {
             background-color: var(--bg-dark);
             color: var(--text-main);
             font-family: 'Inter', sans-serif;
             overflow: hidden;
+            position: relative;
+        }
+
+        #design-root {
             width: 1920px;
             height: 1080px;
-            position: relative;
+            position: fixed;
+            left: 0;
+            top: 0;
+            transform-origin: 0 0;
+            transform: scale(var(--ui-scale));
+            z-index: 1;
         }
 
         /* BACKGROUND ANIMATION */
         #particles-canvas {
-            position: absolute;
+            position: fixed;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            z-index: -1;
+            z-index: 0;
             opacity: 0.4;
         }
 
@@ -438,6 +453,136 @@
             color: var(--bg-dark);
         }
 
+        /* HIDDEN FILTERS (kiosk-friendly) */
+        #filters-hotspot {
+            position: fixed;
+            top: 0;
+            right: 0;
+            width: 44px;
+            height: 44px;
+            z-index: 1201;
+            background: transparent;
+        }
+
+        #filters-panel {
+            position: fixed;
+            top: 90px;
+            right: 30px;
+            width: 380px;
+            z-index: 1300;
+            display: none;
+            padding: 18px;
+            background: var(--bg-card);
+            border: 1px solid var(--glass-border);
+            border-radius: 18px;
+            backdrop-filter: blur(20px);
+            box-shadow: 0 0 60px rgba(0, 191, 255, 0.12);
+        }
+
+        #filters-panel.open { display: block; }
+
+        .filters-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 12px;
+        }
+
+        .filters-title {
+            font-weight: 800;
+            letter-spacing: 1px;
+            color: var(--accent-cyan);
+        }
+
+        .filters-close {
+            cursor: pointer;
+            width: 32px;
+            height: 32px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid var(--glass-border);
+            background: rgba(255, 255, 255, 0.04);
+            transition: all 0.2s ease;
+        }
+
+        .filters-close:hover {
+            background: rgba(0, 191, 255, 0.12);
+            border-color: rgba(0, 191, 255, 0.35);
+        }
+
+        .filters-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 10px;
+        }
+
+        .filter-row {
+            display: grid;
+            grid-template-columns: 120px 1fr;
+            gap: 10px;
+            align-items: center;
+            padding: 10px;
+            border: 1px solid var(--glass-border);
+            border-radius: 14px;
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        .filter-label {
+            font-size: 0.85rem;
+            color: var(--text-dim);
+            font-weight: 700;
+            letter-spacing: 0.5px;
+        }
+
+        .filter-select {
+            width: 100%;
+            padding: 10px 12px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.10);
+            background: rgba(10, 15, 30, 0.6);
+            color: var(--text-main);
+            outline: none;
+        }
+
+        .filters-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 12px;
+        }
+
+        .filters-btn {
+            flex: 1;
+            padding: 12px;
+            border-radius: 14px;
+            border: 1px solid var(--glass-border);
+            background: rgba(255, 255, 255, 0.04);
+            color: var(--text-main);
+            font-weight: 800;
+            letter-spacing: 1px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .filters-btn.primary {
+            background: rgba(0, 191, 255, 0.12);
+            border-color: rgba(0, 191, 255, 0.35);
+        }
+
+        .filters-btn:hover {
+            transform: translateY(-1px);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .filters-hint {
+            margin-top: 10px;
+            font-size: 0.75rem;
+            color: var(--text-dim);
+            opacity: 0.85;
+            user-select: text;
+        }
+
         .chart-container {
             position: relative;
             height: 180px;
@@ -468,6 +613,8 @@
 
     <canvas id="particles-canvas"></canvas>
 
+    <div id="design-root">
+
     <!-- TELA DE UPLOAD -->
     <div id="upload-overlay">
         <div class="upload-container">
@@ -495,6 +642,50 @@
 
     <!-- BOTÃO DE ATUALIZAÇÃO -->
     <div class="refresh-btn" id="btn-refresh" title="Atualizar Dados">↻</div>
+
+    <!-- HOTSPOT INVISÍVEL (canto superior direito) -->
+    <div id="filters-hotspot" title="Filtros"></div>
+
+    <!-- PAINEL DE FILTROS (oculto por padrão) -->
+    <div id="filters-panel" aria-hidden="true">
+        <div class="filters-header">
+            <div class="filters-title">FILTROS</div>
+            <div class="filters-close" id="filters-close" title="Fechar">✕</div>
+        </div>
+
+        <div class="filters-grid">
+            <div class="filter-row" id="filter-row-montadora">
+                <div class="filter-label">Montadora</div>
+                <select class="filter-select" id="filter-montadora"></select>
+            </div>
+            <div class="filter-row" id="filter-row-proprietario">
+                <div class="filter-label">Proprietários</div>
+                <select class="filter-select" id="filter-proprietario"></select>
+            </div>
+
+            <div class="filter-row" id="tune-row-scale">
+                <div class="filter-label">Zoom</div>
+                <div style="display:flex; gap:10px; align-items:center;">
+                    <input class="filter-select" id="tune-scale" type="range" min="80" max="100" step="1" value="100" style="padding: 8px 10px;">
+                    <div style="width:52px; text-align:right; font-family:'JetBrains Mono', monospace;" id="tune-scale-val">100%</div>
+                </div>
+            </div>
+            <div class="filter-row" id="tune-row-offsety">
+                <div class="filter-label">Subir</div>
+                <div style="display:flex; gap:10px; align-items:center;">
+                    <input class="filter-select" id="tune-offsety" type="range" min="-180" max="180" step="5" value="0" style="padding: 8px 10px;">
+                    <div style="width:52px; text-align:right; font-family:'JetBrains Mono', monospace;" id="tune-offsety-val">0</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="filters-actions">
+            <button class="filters-btn" id="filters-clear" type="button">LIMPAR</button>
+            <button class="filters-btn primary" id="filters-apply" type="button">APLICAR</button>
+        </div>
+
+        <div class="filters-hint">Abrir/fechar: clique no canto superior direito ou atalho <strong>Ctrl</strong>+<strong>Shift</strong>+<strong>F</strong>.</div>
+    </div>
 
     <!-- DASHBOARD PRINCIPAL -->
     <div id="dashboard">
@@ -658,37 +849,313 @@
 
     </div>
 
+    </div>
+
     <script>
         /**
          * <!-- DATA SERVICE -->
          * Camada preparada para futura integração com API.
          * Atualmente gerencia o estado global dos dados carregados.
          */
+        const ViewportScale = {
+            designWidth: 1920,
+            designHeight: 1080,
+            _pendingRaf: 0,
+            tuneKey: 'avantrax.viewport.tune.v1',
+            tune: { scalePct: 100, offsetY: 0 },
+
+            loadTune() {
+                try {
+                    const raw = localStorage.getItem(this.tuneKey);
+                    if (!raw) return;
+                    const parsed = JSON.parse(raw);
+                    if (!parsed || typeof parsed !== 'object') return;
+                    const scalePct = Number(parsed.scalePct);
+                    const offsetY = Number(parsed.offsetY);
+                    if (Number.isFinite(scalePct)) this.tune.scalePct = Math.min(100, Math.max(80, Math.round(scalePct)));
+                    if (Number.isFinite(offsetY)) this.tune.offsetY = Math.min(180, Math.max(-180, Math.round(offsetY)));
+                } catch (_) {}
+            },
+
+            persistTune() {
+                try {
+                    localStorage.setItem(this.tuneKey, JSON.stringify(this.tune));
+                } catch (_) {}
+            },
+
+            setTune(next) {
+                if (next && typeof next === 'object') {
+                    if (next.scalePct !== undefined) {
+                        const v = Number(next.scalePct);
+                        if (Number.isFinite(v)) this.tune.scalePct = Math.min(100, Math.max(80, Math.round(v)));
+                    }
+                    if (next.offsetY !== undefined) {
+                        const v = Number(next.offsetY);
+                        if (Number.isFinite(v)) this.tune.offsetY = Math.min(180, Math.max(-180, Math.round(v)));
+                    }
+                }
+                this.persistTune();
+                this.apply();
+            },
+
+            apply() {
+                const root = document.getElementById('design-root');
+                const viewport = window.visualViewport || null;
+                const widthCandidates = [
+                    document.documentElement && document.documentElement.clientWidth,
+                    window.innerWidth,
+                    viewport && viewport.width,
+                ].filter(v => typeof v === 'number' && v > 0);
+                const heightCandidates = [
+                    document.documentElement && document.documentElement.clientHeight,
+                    window.innerHeight,
+                    viewport && viewport.height,
+                ].filter(v => typeof v === 'number' && v > 0);
+
+                const vw = widthCandidates.length ? Math.min(...widthCandidates) : this.designWidth;
+                const vh = heightCandidates.length ? Math.min(...heightCandidates) : this.designHeight;
+                const vpLeft = viewport && typeof viewport.offsetLeft === 'number' ? viewport.offsetLeft : 0;
+                const vpTop = viewport && typeof viewport.offsetTop === 'number' ? viewport.offsetTop : 0;
+
+                const base = Math.min(vw / this.designWidth, vh / this.designHeight);
+                const baseScale = Number.isFinite(base) && base > 0 ? base : 1;
+                const tuneScale = (this.tune.scalePct || 100) / 100;
+                const desiredScale = baseScale * tuneScale;
+
+                const setScaleAndCenter = (scale) => {
+                    document.documentElement.style.setProperty('--ui-scale', String(scale));
+                    if (!root) return;
+                    const offsetX = Math.max(0, (vw - this.designWidth * scale) / 2);
+                    const offsetY = Math.max(0, (vh - this.designHeight * scale) / 2) + (this.tune.offsetY || 0) * scale;
+                    root.style.left = `${Math.floor(offsetX + vpLeft)}px`;
+                    root.style.top = `${Math.floor(offsetY + vpTop)}px`;
+                };
+
+                setScaleAndCenter(desiredScale);
+
+                if (this._pendingRaf) cancelAnimationFrame(this._pendingRaf);
+                this._pendingRaf = requestAnimationFrame(() => {
+                    this._pendingRaf = 0;
+                    if (!root) return;
+
+                    const rect = root.getBoundingClientRect();
+                    const overflowX = rect.right - (vpLeft + vw);
+                    const overflowY = rect.bottom - (vpTop + vh);
+                    const tolerance = 0.5;
+                    if (overflowX <= tolerance && overflowY <= tolerance) return;
+
+                    const fitX = vw / Math.max(1, rect.width);
+                    const fitY = vh / Math.max(1, rect.height);
+                    const corrected = desiredScale * Math.min(fitX, fitY) * 0.992;
+                    const nextScale = Number.isFinite(corrected) && corrected > 0 ? corrected : desiredScale;
+                    setScaleAndCenter(nextScale);
+                });
+            },
+            init() {
+                this.loadTune();
+                this.apply();
+                window.addEventListener('resize', () => this.apply(), { passive: true });
+                if (window.visualViewport) {
+                    window.visualViewport.addEventListener('resize', () => this.apply(), { passive: true });
+                    window.visualViewport.addEventListener('scroll', () => this.apply(), { passive: true });
+                }
+            }
+        };
+        ViewportScale.init();
+
         const DataService = {
             embarcados: [],
             inventario: [],
             lastUpdate: null,
 
+            filters: {
+                montadora: '',
+                proprietario: '',
+            },
+            columnMap: {
+                embarcados: { montadora: null, proprietario: null },
+                inventario: { montadora: null, proprietario: null },
+            },
+
+            storageKey: 'avantrax.filters.v1',
+
+            normalizeHeader(value) {
+                return String(value ?? '')
+                    .normalize('NFD')
+                    .replace(/[\u0300-\u036f]/g, '')
+                    .trim()
+                    .toUpperCase();
+            },
+
+            normalizeValue(value) {
+                return String(value ?? '').trim();
+            },
+
+            findBestKey(rows, candidates, heuristics = []) {
+                if (!Array.isArray(rows) || rows.length === 0) return null;
+                const keys = Object.keys(rows[0] ?? {});
+                if (keys.length === 0) return null;
+
+                const normalizedKeys = keys.map(k => ({ raw: k, norm: this.normalizeHeader(k) }));
+                const normalizedCandidates = candidates.map(c => this.normalizeHeader(c));
+
+                for (const cand of normalizedCandidates) {
+                    const exact = normalizedKeys.find(k => k.norm === cand);
+                    if (exact) return exact.raw;
+                }
+
+                const simplify = (s) => s.replace(/[^A-Z0-9]/g, '');
+                const normalizedKeysSimple = normalizedKeys.map(k => ({ raw: k.raw, norm: simplify(k.norm) }));
+                const candidatesSimple = normalizedCandidates.map(simplify);
+
+                for (const cand of candidatesSimple) {
+                    const exact = normalizedKeysSimple.find(k => k.norm === cand);
+                    if (exact) return exact.raw;
+                }
+
+                const heuristicMatches = [];
+                for (const h of heuristics) {
+                    const hn = simplify(this.normalizeHeader(h));
+                    normalizedKeysSimple.forEach(k => {
+                        if (k.norm.includes(hn)) heuristicMatches.push(k.raw);
+                    });
+                }
+                const unique = Array.from(new Set(heuristicMatches));
+                return unique.length === 1 ? unique[0] : null;
+            },
+
+            updateColumnMap(type) {
+                const rows = this[type] ?? [];
+
+                const montadoraKey = this.findBestKey(
+                    rows,
+                    ['MONTADORA', 'MOTADORA', 'MONTADORA/GRUPO', 'MONTADORA GRUPO'],
+                    ['MONTADOR', 'MOTADOR']
+                );
+                const proprietarioKey = this.findBestKey(
+                    rows,
+                    ['PROPRIETARIO', 'PROPRIETÁRIO', 'PROPRIETARIO/CLIENTE', 'CLIENTE', 'PROPRIETARIO CLIENTE'],
+                    ['PROPRIETAR', 'CLIENTE']
+                );
+
+                this.columnMap[type] = {
+                    montadora: montadoraKey,
+                    proprietario: proprietarioKey,
+                };
+            },
+
+            loadFilters() {
+                try {
+                    const raw = localStorage.getItem(this.storageKey);
+                    if (!raw) return;
+                    const parsed = JSON.parse(raw);
+                    if (parsed && typeof parsed === 'object') {
+                        this.filters.montadora = this.normalizeValue(parsed.montadora || '');
+                        this.filters.proprietario = this.normalizeValue(parsed.proprietario || '');
+                    }
+                } catch (_) {}
+            },
+
+            persistFilters() {
+                try {
+                    localStorage.setItem(this.storageKey, JSON.stringify(this.filters));
+                } catch (_) {}
+            },
+
+            setFilters(next) {
+                this.filters = {
+                    montadora: this.normalizeValue(next?.montadora ?? this.filters.montadora ?? ''),
+                    proprietario: this.normalizeValue(next?.proprietario ?? this.filters.proprietario ?? ''),
+                };
+                this.persistFilters();
+            },
+
+            clearFilters() {
+                this.filters = { montadora: '', proprietario: '' };
+                this.persistFilters();
+            },
+
+            getFiltered(type) {
+                const rows = this[type] ?? [];
+                const map = this.columnMap[type] ?? {};
+                const f = this.filters;
+
+                if (!rows.length) return rows;
+
+                const montadoraActive = f.montadora && map.montadora;
+                const proprietarioActive = f.proprietario && map.proprietario;
+                if (!montadoraActive && !proprietarioActive) return rows;
+
+                return rows.filter(r => {
+                    if (montadoraActive) {
+                        const v = this.normalizeValue(r[map.montadora]);
+                        if (v !== f.montadora) return false;
+                    }
+                    if (proprietarioActive) {
+                        const v = this.normalizeValue(r[map.proprietario]);
+                        if (v !== f.proprietario) return false;
+                    }
+                    return true;
+                });
+            },
+
+            getFilterOptions() {
+                const options = {
+                    montadora: new Set(),
+                    proprietario: new Set(),
+                    has: { montadora: false, proprietario: false },
+                };
+
+                const collect = (type) => {
+                    const rows = this[type] ?? [];
+                    const map = this.columnMap[type] ?? {};
+                    if (map.montadora) options.has.montadora = true;
+                    if (map.proprietario) options.has.proprietario = true;
+                    rows.forEach(r => {
+                        if (map.montadora) {
+                            const v = this.normalizeValue(r[map.montadora]);
+                            if (v) options.montadora.add(v);
+                        }
+                        if (map.proprietario) {
+                            const v = this.normalizeValue(r[map.proprietario]);
+                            if (v) options.proprietario.add(v);
+                        }
+                    });
+                };
+
+                collect('inventario');
+                collect('embarcados');
+
+                return {
+                    montadora: Array.from(options.montadora).sort((a, b) => a.localeCompare(b, 'pt-BR')),
+                    proprietario: Array.from(options.proprietario).sort((a, b) => a.localeCompare(b, 'pt-BR')),
+                    has: options.has,
+                };
+            },
+
             setData(type, data) {
                 this[type] = data;
                 this.lastUpdate = new Date();
+                this.updateColumnMap(type);
             },
 
             getStats() {
+                const inventario = this.getFiltered('inventario');
+                const embarcados = this.getFiltered('embarcados');
                 // Cálculos baseados no Inventário
-                const totalPatio = this.inventario.length;
-                const naoFaturados = this.inventario.filter(i => i.STAT_FAT === 'NAO FATURADO').length;
-                const faturadosAguardando = this.inventario.filter(i => i.STAT_FAT === 'FATURADO').length;
-                const bloqueados = this.inventario.filter(i => i['MOTIVO BLOQUEIO'] && i['MOTIVO BLOQUEIO'].trim() !== '');
+                const totalPatio = inventario.length;
+                const naoFaturados = inventario.filter(i => i.STAT_FAT === 'NAO FATURADO').length;
+                const faturadosAguardando = inventario.filter(i => i.STAT_FAT === 'FATURADO').length;
+                const bloqueados = inventario.filter(i => i['MOTIVO BLOQUEIO'] && i['MOTIVO BLOQUEIO'].trim() !== '');
                 
-                const agingPatioSum = this.inventario.reduce((acc, curr) => acc + (Number(curr.AGING_PATIO) || 0), 0);
+                const agingPatioSum = inventario.reduce((acc, curr) => acc + (Number(curr.AGING_PATIO) || 0), 0);
                 const agingPatioAvg = totalPatio > 0 ? (agingPatioSum / totalPatio).toFixed(1) : 0;
                 
-                const criticos = this.inventario.filter(i => (Number(i.AGING_PATIO) || 0) > 90).length;
+                const criticos = inventario.filter(i => (Number(i.AGING_PATIO) || 0) > 90).length;
 
                 // Cálculos baseados em Embarcados
-                const totalEmbarcados = this.embarcados.length;
-                const transportadoras = new Set(this.embarcados.map(e => e['NOME TRANSPORTADORA'])).size;
+                const totalEmbarcados = embarcados.length;
+                const transportadoras = new Set(embarcados.map(e => e['NOME TRANSPORTADORA'])).size;
 
                 return {
                     totalPatio,
@@ -734,9 +1201,11 @@
             charts: {},
 
             init() {
+                DataService.loadFilters();
                 this.setupClock();
                 this.setupUploadListeners();
                 this.setupRefresh();
+                this.setupFilters();
             },
 
             setupClock() {
@@ -818,6 +1287,151 @@
                 };
             },
 
+            setupFilters() {
+                const panel = document.getElementById('filters-panel');
+                const hotspot = document.getElementById('filters-hotspot');
+                const closeBtn = document.getElementById('filters-close');
+                const applyBtn = document.getElementById('filters-apply');
+                const clearBtn = document.getElementById('filters-clear');
+                const montadoraSelect = document.getElementById('filter-montadora');
+                const proprietarioSelect = document.getElementById('filter-proprietario');
+                const tuneScale = document.getElementById('tune-scale');
+                const tuneScaleVal = document.getElementById('tune-scale-val');
+                const tuneOffsetY = document.getElementById('tune-offsety');
+                const tuneOffsetYVal = document.getElementById('tune-offsety-val');
+
+                const open = () => {
+                    panel.classList.add('open');
+                    panel.setAttribute('aria-hidden', 'false');
+                    this.refreshFiltersUI();
+                    if (tuneScale) tuneScale.value = String(ViewportScale.tune.scalePct ?? 100);
+                    if (tuneScaleVal) tuneScaleVal.textContent = `${ViewportScale.tune.scalePct ?? 100}%`;
+                    if (tuneOffsetY) tuneOffsetY.value = String(ViewportScale.tune.offsetY ?? 0);
+                    if (tuneOffsetYVal) tuneOffsetYVal.textContent = String(ViewportScale.tune.offsetY ?? 0);
+                };
+
+                const close = () => {
+                    panel.classList.remove('open');
+                    panel.setAttribute('aria-hidden', 'true');
+                };
+
+                const toggle = () => {
+                    panel.classList.contains('open') ? close() : open();
+                };
+
+                const applyFromUI = () => {
+                    DataService.setFilters({
+                        montadora: montadoraSelect.value === '__ALL__' ? '' : montadoraSelect.value,
+                        proprietario: proprietarioSelect.value === '__ALL__' ? '' : proprietarioSelect.value,
+                    });
+                    this.renderAll();
+                };
+
+                const clear = () => {
+                    DataService.clearFilters();
+                    this.refreshFiltersUI();
+                    this.renderAll();
+                };
+
+                hotspot.onclick = toggle;
+                closeBtn.onclick = close;
+                applyBtn.onclick = () => { applyFromUI(); close(); };
+                clearBtn.onclick = clear;
+
+                // aplica instantaneamente ao trocar (APLICAR fica como opção "segura" no kiosk)
+                montadoraSelect.onchange = applyFromUI;
+                proprietarioSelect.onchange = applyFromUI;
+
+                const applyTune = () => {
+                    if (!tuneScale || !tuneOffsetY) return;
+                    ViewportScale.setTune({
+                        scalePct: Number(tuneScale.value),
+                        offsetY: Number(tuneOffsetY.value),
+                    });
+                    if (tuneScaleVal) tuneScaleVal.textContent = `${ViewportScale.tune.scalePct}%`;
+                    if (tuneOffsetYVal) tuneOffsetYVal.textContent = String(ViewportScale.tune.offsetY);
+                };
+
+                if (tuneScale) tuneScale.addEventListener('input', applyTune, { passive: true });
+                if (tuneOffsetY) tuneOffsetY.addEventListener('input', applyTune, { passive: true });
+
+                window.addEventListener('keydown', (e) => {
+                    const key = (e.key || '').toLowerCase();
+                    if (e.ctrlKey && e.shiftKey && key === 'f') {
+                        e.preventDefault();
+                        toggle();
+                    }
+                    if (e.ctrlKey && e.altKey) {
+                        if (key === '-' || key === '_') {
+                            e.preventDefault();
+                            ViewportScale.setTune({ scalePct: (ViewportScale.tune.scalePct ?? 100) - 2 });
+                            if (panel.classList.contains('open')) open();
+                        }
+                        if (key === '=' || key === '+') {
+                            e.preventDefault();
+                            ViewportScale.setTune({ scalePct: (ViewportScale.tune.scalePct ?? 100) + 2 });
+                            if (panel.classList.contains('open')) open();
+                        }
+                        if (key === 'arrowup') {
+                            e.preventDefault();
+                            ViewportScale.setTune({ offsetY: (ViewportScale.tune.offsetY ?? 0) - 10 });
+                            if (panel.classList.contains('open')) open();
+                        }
+                        if (key === 'arrowdown') {
+                            e.preventDefault();
+                            ViewportScale.setTune({ offsetY: (ViewportScale.tune.offsetY ?? 0) + 10 });
+                            if (panel.classList.contains('open')) open();
+                        }
+                    }
+                    if (key === 'escape') close();
+                });
+            },
+
+            refreshFiltersUI() {
+                const { montadora, proprietario, has } = DataService.getFilterOptions();
+
+                const montadoraRow = document.getElementById('filter-row-montadora');
+                const proprietarioRow = document.getElementById('filter-row-proprietario');
+                const montadoraSelect = document.getElementById('filter-montadora');
+                const proprietarioSelect = document.getElementById('filter-proprietario');
+
+                const fillSelect = (select, options, current, field) => {
+                    const prev = current || '';
+                    select.innerHTML = '';
+
+                    const optAll = document.createElement('option');
+                    optAll.value = '__ALL__';
+                    optAll.textContent = 'Todos';
+                    select.appendChild(optAll);
+
+                    options.forEach(v => {
+                        const o = document.createElement('option');
+                        o.value = v;
+                        o.textContent = v;
+                        select.appendChild(o);
+                    });
+
+                    if (!prev) {
+                        select.value = '__ALL__';
+                        return;
+                    }
+                    const found = options.includes(prev);
+                    select.value = found ? prev : '__ALL__';
+                    if (!found) {
+                        DataService.setFilters({
+                            montadora: field === 'montadora' ? '' : DataService.filters.montadora,
+                            proprietario: field === 'proprietario' ? '' : DataService.filters.proprietario,
+                        });
+                    }
+                };
+
+                montadoraRow.style.display = has.montadora ? 'grid' : 'none';
+                proprietarioRow.style.display = has.proprietario ? 'grid' : 'none';
+
+                fillSelect(montadoraSelect, montadora, DataService.filters.montadora, 'montadora');
+                fillSelect(proprietarioSelect, proprietario, DataService.filters.proprietario, 'proprietario');
+            },
+
             enterFullscreen() {
                 if (document.documentElement.requestFullscreen) {
                     document.documentElement.requestFullscreen().catch(() => {});
@@ -826,6 +1440,7 @@
 
             renderAll() {
                 const stats = DataService.getStats();
+                this.refreshFiltersUI();
                 
                 // KPIs
                 this.animateValue('kpi-patio', stats.totalPatio);
@@ -858,7 +1473,7 @@
 
                 // Depósitos Breakdown
                 const deps = { GMB: 0, '0KM': 0, FZD: 0 };
-                DataService.inventario.forEach(i => { if(deps[i.DEP] !== undefined) deps[i.DEP]++; });
+                DataService.getFiltered('inventario').forEach(i => { if(deps[i.DEP] !== undefined) deps[i.DEP]++; });
                 
                 ['GMB', '0KM', 'FZD'].forEach(d => {
                     const id = d.toLowerCase();
@@ -869,7 +1484,7 @@
                 });
 
                 // Footer Progress
-                const faturadosTotal = DataService.inventario.filter(i => i.STAT_FAT === 'FATURADO').length;
+                const faturadosTotal = DataService.getFiltered('inventario').filter(i => i.STAT_FAT === 'FATURADO').length;
                 const percFat = stats.totalPatio > 0 ? Math.round((faturadosTotal / stats.totalPatio) * 100) : 0;
                 document.getElementById('progress-fill').style.width = percFat + '%';
                 document.getElementById('progress-percent').textContent = percFat + '%';
@@ -877,7 +1492,7 @@
 
                 // Top Destinos
                 const destinos = {};
-                DataService.inventario.forEach(i => { if(i.LOCAL_ENTREGA) destinos[i.LOCAL_ENTREGA] = (destinos[i.LOCAL_ENTREGA] || 0) + 1; });
+                DataService.getFiltered('inventario').forEach(i => { if(i.LOCAL_ENTREGA) destinos[i.LOCAL_ENTREGA] = (destinos[i.LOCAL_ENTREGA] || 0) + 1; });
                 const topDest = Object.entries(destinos).sort((a,b) => b[1] - a[1]).slice(0, 3);
                 const destContainer = document.getElementById('top-destinos');
                 destContainer.innerHTML = '<span style="color: var(--text-dim)">TOP DESTINOS:</span>';
@@ -910,6 +1525,8 @@
             renderCharts(stats) {
                 // Limpar gráficos anteriores se existirem
                 Object.values(this.charts).forEach(c => c.destroy());
+                const inventario = DataService.getFiltered('inventario');
+                const embarcados = DataService.getFiltered('embarcados');
 
                 const chartConfig = (type, labels, data, colors) => ({
                     type,
@@ -935,8 +1552,8 @@
 
                 // 1. Donut Stat Fat
                 const fatData = [
-                    DataService.inventario.filter(i => i.STAT_FAT === 'FATURADO').length,
-                    DataService.inventario.filter(i => i.STAT_FAT === 'NAO FATURADO').length
+                    inventario.filter(i => i.STAT_FAT === 'FATURADO').length,
+                    inventario.filter(i => i.STAT_FAT === 'NAO FATURADO').length
                 ];
                 this.charts.statFat = new Chart(document.getElementById('chart-stat-fat'), {
                     type: 'doughnut',
@@ -956,7 +1573,7 @@
 
                 // 2. Top 5 Modelos Patio
                 const modelos = {};
-                DataService.inventario.forEach(i => { modelos[i.MODELO] = (modelos[i.MODELO] || 0) + 1; });
+                inventario.forEach(i => { modelos[i.MODELO] = (modelos[i.MODELO] || 0) + 1; });
                 const topModelos = Object.entries(modelos).sort((a,b) => b[1] - a[1]).slice(0, 5);
                 this.charts.modelos = new Chart(document.getElementById('chart-modelos-patio'), 
                     chartConfig('bar', topModelos.map(m => m[0].substring(0, 15)), topModelos.map(m => m[1]), '#00BFFF')
@@ -964,7 +1581,7 @@
 
                 // 3. Aging Heatmap
                 const agingRanges = { '0-7d': 0, '8-30d': 0, '31-90d': 0, '>90d': 0 };
-                DataService.inventario.forEach(i => {
+                inventario.forEach(i => {
                     const a = Number(i.AGING_PATIO) || 0;
                     if(a <= 7) agingRanges['0-7d']++;
                     else if(a <= 30) agingRanges['8-30d']++;
@@ -990,7 +1607,7 @@
 
                 // 4. Top 5 Transportadoras
                 const transps = {};
-                DataService.embarcados.forEach(e => { transps[e['NOME TRANSPORTADORA']] = (transps[e['NOME TRANSPORTADORA']] || 0) + 1; });
+                embarcados.forEach(e => { transps[e['NOME TRANSPORTADORA']] = (transps[e['NOME TRANSPORTADORA']] || 0) + 1; });
                 const topTransp = Object.entries(transps).sort((a,b) => b[1] - a[1]).slice(0, 5);
                 this.charts.transp = new Chart(document.getElementById('chart-top-transp'), 
                     chartConfig('bar', topTransp.map(t => t[0].substring(0, 12)), topTransp.map(t => t[1]), '#007BFF')
@@ -998,7 +1615,7 @@
 
                 // 5. TP Venda
                 const tpVenda = { VD: 0, TD: 0 };
-                DataService.embarcados.forEach(e => { if(tpVenda[e.TP_VENDA] !== undefined) tpVenda[e.TP_VENDA]++; });
+                embarcados.forEach(e => { if(tpVenda[e.TP_VENDA] !== undefined) tpVenda[e.TP_VENDA]++; });
                 this.charts.tpVenda = new Chart(document.getElementById('chart-tp-venda'), {
                     type: 'pie',
                     data: {
@@ -1014,7 +1631,7 @@
 
                 // 6. Aging Embarcados
                 const agingEmb = { '0-5d': 0, '6-15d': 0, '16-30d': 0, '>30d': 0 };
-                DataService.embarcados.forEach(e => {
+                embarcados.forEach(e => {
                     const a = Number(e.AGING) || 0;
                     if(a <= 5) agingEmb['0-5d']++;
                     else if(a <= 15) agingEmb['6-15d']++;
