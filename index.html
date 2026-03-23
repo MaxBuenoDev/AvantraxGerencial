@@ -1269,9 +1269,18 @@
                     proprietario: this.normalizeValue(next?.proprietario ?? this.filters.proprietario ?? ''),
                 };
                 this.persistFilters();
+                if (TV_MODE) {
+                    try { window.parent?.postMessage({ type: 'avantrax:filters', filters: { ...this.filters } }, '*'); } catch (_) {}
+                }
             },
 
-            clearFilters() { this.filters = { montadora: '', proprietario: '' }; this.persistFilters(); },
+            clearFilters() {
+                this.filters = { montadora: '', proprietario: '' };
+                this.persistFilters();
+                if (TV_MODE) {
+                    try { window.parent?.postMessage({ type: 'avantrax:filters', filters: { ...this.filters } }, '*'); } catch (_) {}
+                }
+            },
 
             getFiltered(type) {
                 const rows = this[type] ?? [];
@@ -1446,6 +1455,9 @@
 
             async init() {
                 DataService.loadFilters();
+                if (TV_MODE) {
+                    try { window.parent?.postMessage({ type: 'avantrax:filters', filters: { ...DataService.filters } }, '*'); } catch (_) {}
+                }
                 this.setupClock();
                 this.setupUploadListeners();
                 this.setupRefresh();

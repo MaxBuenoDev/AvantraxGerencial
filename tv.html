@@ -40,6 +40,7 @@
       };
 
       const ready = { index: false, mapa: false };
+      let filters = { montadora: "", proprietario: "" };
       let current = "index";
 
       function setActive(name) {
@@ -56,6 +57,12 @@
         } catch (_) {}
       }
 
+      function postFilters(name) {
+        try {
+          frames[name]?.contentWindow?.postMessage({ type: "avantrax:filters", filters }, "*");
+        } catch (_) {}
+      }
+
       function getNext() {
         return current === "index" ? "mapa" : "index";
       }
@@ -64,6 +71,7 @@
         const next = getNext();
         if (!ready[next]) return;
         setActive(next);
+        postFilters(next);
         postRefresh(next);
       }
 
@@ -72,17 +80,29 @@
         if (!data || typeof data !== "object") return;
         if (data.type === "avantrax:ready" && (data.page === "index" || data.page === "mapa")) {
           ready[data.page] = true;
+          postFilters(data.page);
         }
         if (data.type === "avantrax:data_updated") {
           postRefresh("mapa");
         }
+        if (data.type === "avantrax:filters" && data.filters && typeof data.filters === "object") {
+          filters = {
+            montadora: String(data.filters.montadora || ""),
+            proprietario: String(data.filters.proprietario || ""),
+          };
+          postFilters("mapa");
+        }
       });
 
       Object.keys(frames).forEach((name) => {
-        frames[name].addEventListener("load", () => postRefresh(name));
+        frames[name].addEventListener("load", () => {
+          postFilters(name);
+          postRefresh(name);
+        });
       });
 
       setActive("index");
+      postFilters("index");
       postRefresh("index");
 
       setInterval(() => {

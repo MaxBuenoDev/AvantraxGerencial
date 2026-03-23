@@ -515,6 +515,10 @@ function extractUF(local) {
 // DATA PROCESSING
 // ════════════════════════════════════════════════════════════════
 let stateMap = {}, localMap = {};
+let lastInventarioRows = null;
+let currentFilters = { montadora: '', proprietario: '' };
+let filterCols = { montadora: null, proprietario: null };
+let dashboardVisible = false;
 
 function findCol(rows, candidates) {
     if (!rows.length) return null;
@@ -531,6 +535,38 @@ function findCol(rows, candidates) {
         if (f) return f;
     }
     return null;
+}
+
+function normalizeComp(value) {
+    return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toUpperCase();
+}
+
+function setFilterCols(rows) {
+    filterCols = {
+        montadora: findCol(rows, ['MONTADORA','MOTADORA','MONTADORA/GRUPO','MONTADORA GRUPO']),
+        proprietario: findCol(rows, ['PROPRIETARIO','PROPRIETÁRIO','CLIENTE','PROPRIETARIO/CLIENTE','PROPRIETARIO CLIENTE','PROPRIETARIO_CLIENTE']),
+    };
+}
+
+function getFilteredRows(rows) {
+    if (!rows || !rows.length) return rows || [];
+
+    const fMont = normalizeComp(currentFilters.montadora);
+    const fProp = normalizeComp(currentFilters.proprietario);
+    if (!fMont && !fProp) return rows;
+
+    const mKey = filterCols.montadora;
+    const pKey = filterCols.proprietario;
+
+    return rows.filter(r => {
+        if (fMont && mKey) {
+            if (normalizeComp(r[mKey]) !== fMont) return false;
+        }
+        if (fProp && pKey) {
+            if (normalizeComp(r[pKey]) !== fProp) return false;
+        }
+        return true;
+    });
 }
 
 function processInventario(rows) {
@@ -590,6 +626,21 @@ function processInventario(rows) {
     console.log('[mapa] Estados identificados:', Object.keys(stateMap).length, '| Locais únicos:', Object.keys(localMap).length, '| Sem local:', semLocal);
 
     return { total: fat.length, semLocal, vehicles };
+}
+
+function ensureMapBuilt() {
+    if (svgEl) return;
+    buildMap();
+}
+
+function renderDashboard(rows) {
+    if (!rows) rows = [];
+    lastInventarioRows = rows;
+    ensureMapBuilt();
+    setFilterCols(rows);
+    const filtered = getFilteredRows(rows);
+    const result = processInventario(filtered);
+    renderAll(result);
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -988,9 +1039,10 @@ window.addEventListener('resize', applyScale);
 // SHOW DASHBOARD
 // ════════════════════════════════════════════════════════════════
 function showDashboard(inventarioRows) {
-    buildMap();
-    const result = processInventario(inventarioRows);
-    renderAll(result);
+    renderDashboard(inventarioRows);
+
+    if (dashboardVisible) return;
+    dashboardVisible = true;
 
     const overlay=document.getElementById('upload-overlay');
     overlay.style.opacity='0';
@@ -1125,10 +1177,17 @@ window.addEventListener('message', async (e) => {
     if (!TV_MODE) return;
     const data = e?.data;
     if (!data || typeof data !== 'object') return;
-    if (data.type !== 'avantrax:refresh') return;
-    try {
-        await tryLoadFromSupabase();
-    } catch (_) {}
+    if (data.type === 'avantrax:refresh') {
+        try { await tryLoadFromSupabase(); } catch (_) {}
+        return;
+    }
+    if (data.type === 'avantrax:filters' && data.filters && typeof data.filters === 'object') {
+        currentFilters = {
+            montadora: String(data.filters.montadora || ''),
+            proprietario: String(data.filters.proprietario || ''),
+        };
+        if (lastInventarioRows) renderDashboard(lastInventarioRows);
+    }
 });
 </script>
 </body>
