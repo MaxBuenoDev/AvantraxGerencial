@@ -57,6 +57,12 @@
         } catch (_) {}
       }
 
+      function postScreenStart(name) {
+        try {
+          frames[name]?.contentWindow?.postMessage({ type: "avantrax:screen_start", durationMs: DURATION_MS }, "*");
+        } catch (_) {}
+      }
+
       function postFilters(name) {
         try {
           frames[name]?.contentWindow?.postMessage({ type: "avantrax:filters", filters }, "*");
@@ -71,6 +77,7 @@
         const next = getNext();
         if (!ready[next]) return;
         setActive(next);
+        postScreenStart(next);
         postFilters(next);
         postRefresh(next);
       }
@@ -96,12 +103,14 @@
 
       Object.keys(frames).forEach((name) => {
         frames[name].addEventListener("load", () => {
+          postScreenStart(name);
           postFilters(name);
           postRefresh(name);
         });
       });
 
       setActive("index");
+      postScreenStart("index");
       postFilters("index");
       postRefresh("index");
 

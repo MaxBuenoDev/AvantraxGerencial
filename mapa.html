@@ -194,7 +194,7 @@
             height:100%;opacity:.35;font-size:.78rem;color:var(--dim);gap:7px;}
 
         /* ─── FOOTER ─── */
-        footer{display:flex;justify-content:space-between;align-items:center;
+        footer{display:none;justify-content:space-between;align-items:center;
             padding:9px 22px;background:var(--bg-card);border-radius:14px;
             border:1px solid var(--border);flex-shrink:0;font-size:.67rem;}
         .fst{display:flex;align-items:center;gap:8px;}
@@ -902,6 +902,8 @@ function colorMap() {
 
 function setupTooltip(svg) {
     const tt = document.getElementById('mtt');
+    const root = document.getElementById('design-root');
+    if (tt && root && tt.parentElement !== root) root.appendChild(tt);
     svg.addEventListener('mousemove', e => {
         const path = e.target.closest('path[data-uf]');
         if (!path) { tt.style.opacity='0'; return; }
@@ -917,6 +919,8 @@ function setupTooltip(svg) {
         let ty = (e.clientY - dr.top)  / sc + 14;
         if (tx + 220 > 1920) tx -= 235;
         if (ty + 130 > 1080) ty -= 145;
+        tx = Math.max(10, Math.min(tx, 1920 - 220 - 10));
+        ty = Math.max(10, Math.min(ty, 1080 - 130 - 10));
         tt.style.left = tx+'px'; tt.style.top = ty+'px'; tt.style.opacity='1';
     });
     svg.addEventListener('mouseleave', () => tt.style.opacity='0');
@@ -1001,7 +1005,7 @@ function renderRegions(total) {
 let vPages=[], vPage=0, vTimer=null;
 
 function renderVehicles(vehicles) {
-    const PER=10;
+    const PER=15;
     const sorted=[...vehicles].reverse(); // mais recentes primeiro
     vPages=[];
     for(let i=0;i<sorted.length;i+=PER) vPages.push(sorted.slice(i,i+PER));
@@ -1061,6 +1065,27 @@ function renderTopLocals() {
 // COUNTDOWN → index.html
 // ════════════════════════════════════════════════════════════════
 let cdSec = SWITCH_SEC, cdTimer = null;
+let tvEndAt = 0, tvTimer = null, tvDurationMs = 120000;
+
+function startTvCountdown(durationMs) {
+    tvDurationMs = Math.max(1000, Number(durationMs) || 120000);
+    tvEndAt = Date.now() + tvDurationMs;
+    if (tvTimer) clearInterval(tvTimer);
+    tvTimer = setInterval(updateTvCountdown, 1000);
+    updateTvCountdown();
+}
+
+function updateTvCountdown() {
+    const remainingMs = Math.max(0, tvEndAt - Date.now());
+    const totalSec = Math.ceil(remainingMs / 1000);
+    const m = Math.floor(totalSec / 60);
+    const s = totalSec % 60;
+    const txt = document.getElementById('cdown-txt');
+    const bar = document.getElementById('cbar');
+    if (txt) txt.textContent = m + ':' + String(s).padStart(2,'0');
+    if (bar) bar.style.width = (remainingMs / tvDurationMs * 100) + '%';
+    if (remainingMs <= 0 && tvTimer) { clearInterval(tvTimer); tvTimer = null; }
+}
 
 function startCountdown() {
     cdSec = SWITCH_SEC;
@@ -1155,7 +1180,7 @@ function showDashboard(inventarioRows) {
         const root=document.getElementById('design-root');
         root.style.display='flex';
         applyScale();
-        startCountdown();
+        if (!TV_MODE) startCountdown();
         if (!TV_MODE) { try{ document.documentElement.requestFullscreen().catch(()=>{}); }catch(e){} }
         if (TV_MODE) { try { window.parent?.postMessage({ type: 'avantrax:ready', page: 'mapa' }, '*'); } catch (_) {} }
     },400);
@@ -1283,6 +1308,10 @@ window.addEventListener('message', async (e) => {
     if (!data || typeof data !== 'object') return;
     if (data.type === 'avantrax:refresh') {
         try { await tryLoadFromSupabase(); } catch (_) {}
+        return;
+    }
+    if (data.type === 'avantrax:screen_start') {
+        startTvCountdown(data.durationMs);
         return;
     }
     if (data.type === 'avantrax:filters' && data.filters && typeof data.filters === 'object') {

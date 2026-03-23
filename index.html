@@ -720,6 +720,7 @@
                 <div class="badge active" id="badge-embarcados">EMBARCADOS ✓</div>
                 <div class="badge active" id="badge-inventario">INVENTÁRIO ✓</div>
                 <div class="badge" id="last-update">ÚLTIMA ATUALIZAÇÃO: --:--</div>
+                <div class="badge" id="screen-countdown">TROCA EM: 2:00</div>
             </div>
             <div class="clock-area">
                 <div id="current-time">00:00:00</div>
@@ -1406,8 +1407,36 @@
             charts: {},
             rotationMs: 120000,
             _rotationTimer: 0,
+            _countdownTimer: 0,
+            _countdownEndAt: 0,
             _embFile: null,
             _invFile: null,
+
+            startCountdown(durationMs) {
+                this.stopCountdown();
+                this._countdownEndAt = Date.now() + Math.max(0, Number(durationMs) || 0);
+
+                const tick = () => {
+                    const el = document.getElementById('screen-countdown');
+                    if (!el) return;
+                    const remainingMs = Math.max(0, this._countdownEndAt - Date.now());
+                    const totalSec = Math.ceil(remainingMs / 1000);
+                    const m = Math.floor(totalSec / 60);
+                    const s = totalSec % 60;
+                    el.textContent = `TROCA EM: ${m}:${String(s).padStart(2, '0')}`;
+                    if (remainingMs <= 0) this.stopCountdown();
+                };
+
+                tick();
+                this._countdownTimer = window.setInterval(tick, 1000);
+            },
+
+            stopCountdown() {
+                if (!this._countdownTimer) return;
+                clearInterval(this._countdownTimer);
+                this._countdownTimer = 0;
+                this._countdownEndAt = 0;
+            },
 
             startRotationToMap() {
                 if (TV_MODE) return;
@@ -1415,16 +1444,19 @@
                 this._rotationTimer = window.setTimeout(() => {
                     window.location.href = 'mapa.html';
                 }, this.rotationMs);
+                this.startCountdown(this.rotationMs);
             },
 
             stopRotation() {
                 if (!this._rotationTimer) return;
                 clearTimeout(this._rotationTimer);
                 this._rotationTimer = 0;
+                this.stopCountdown();
             },
 
             openUploadOverlay() {
                 this.stopRotation();
+                this.stopCountdown();
                 this._embFile = null;
                 this._invFile = null;
 
@@ -2488,6 +2520,9 @@
             if (!data || typeof data !== 'object') return;
             if (data.type === 'avantrax:refresh') {
                 try { await DashboardRender.tryLoadFromSupabase(); } catch (_) {}
+            }
+            if (data.type === 'avantrax:screen_start') {
+                DashboardRender.startCountdown(data.durationMs);
             }
         });
     </script>
