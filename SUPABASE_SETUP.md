@@ -21,6 +21,15 @@ Crie um `.env.local` (já está no `.gitignore`) baseado em `.env.example`:
 - `VITE_SUPABASE_URL=...`
 - `VITE_SUPABASE_ANON_KEY=...`
 
+### Deploy (Vercel)
+
+No Vercel, configure as variáveis **com esses nomes exatos** (precisam do prefixo `VITE_`):
+
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_ANON_KEY`
+
+Depois de salvar as variáveis, faça um **Redeploy** (o Vite “embute” essas variáveis no build).
+
 ## 3) Como funciona no app
 
 - Ao clicar em **INICIAR DASHBOARD**, os arquivos são:
@@ -28,4 +37,3 @@ Crie um `.env.local` (já está no `.gitignore`) baseado em `.env.example`:
   2) enviados para o Supabase Storage,
   3) e o metadado do upload é salvo na tabela correspondente.
 - Ao abrir a página, se houver upload salvo no Supabase, o dashboard tenta **baixar e abrir automaticamente** os últimos arquivos.
-
