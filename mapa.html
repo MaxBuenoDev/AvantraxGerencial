@@ -523,7 +523,7 @@ let dashboardVisible = false;
 
 function findCol(rows, candidates) {
     if (!rows.length) return null;
-    const keys = Object.keys(rows[0]);
+    const keys = collectKeys(rows);
     const norm = s => String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toUpperCase().replace(/\s+/g,'_');
     for (const c of candidates) {
         const nc = norm(c);
@@ -542,11 +542,104 @@ function normalizeComp(value) {
     return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toUpperCase();
 }
 
+function collectKeys(rows, limit = 80) {
+    const set = new Set();
+    const n = Math.min(rows?.length || 0, limit);
+    for (let i = 0; i < n; i++) {
+        const r = rows[i];
+        if (!r || typeof r !== 'object') continue;
+        Object.keys(r).forEach(k => set.add(k));
+    }
+    return Array.from(set);
+}
+
+function normalizeHeader(value) {
+    return String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toUpperCase();
+}
+
+function findBestKey(rows, candidates, heuristics = []) {
+    if (!Array.isArray(rows) || rows.length === 0) return null;
+    const keys = collectKeys(rows);
+    if (keys.length === 0) return null;
+
+    const normalizedKeys = keys.map(k => ({ raw: k, norm: normalizeHeader(k) }));
+    const normalizedCandidates = candidates.map(c => normalizeHeader(c));
+
+    for (const cand of normalizedCandidates) {
+        const exact = normalizedKeys.find(k => k.norm === cand);
+        if (exact) return exact.raw;
+    }
+
+    const simplify = (s) => s.replace(/[^A-Z0-9]/g, '');
+    const normalizedKeysSimple = normalizedKeys.map(k => ({ raw: k.raw, norm: simplify(k.norm) }));
+    const candidatesSimple = normalizedCandidates.map(simplify);
+
+    for (const cand of candidatesSimple) {
+        const exact = normalizedKeysSimple.find(k => k.norm === cand);
+        if (exact) return exact.raw;
+    }
+
+    const heuristicMatches = [];
+    for (const h of heuristics) {
+        const hn = simplify(normalizeHeader(h));
+        normalizedKeysSimple.forEach(k => { if (k.norm.includes(hn)) heuristicMatches.push(k.raw); });
+    }
+    const unique = Array.from(new Set(heuristicMatches));
+    return unique.length === 1 ? unique[0] : null;
+}
+
+function detectLocalKeyByValues(rows) {
+    if (!Array.isArray(rows) || rows.length === 0) return null;
+    const keys = collectKeys(rows);
+    const sample = rows.slice(0, Math.min(rows.length, 200));
+
+    let bestKey = null;
+    let bestScore = 0;
+    let bestRatio = 0;
+
+    for (const key of keys) {
+        let hits = 0;
+        let tested = 0;
+        let totalLen = 0;
+
+        for (const r of sample) {
+            const raw = r?.[key];
+            if (raw === undefined || raw === null) continue;
+            const s = String(raw).trim();
+            if (!s) continue;
+            tested++;
+            totalLen += s.length;
+            if (extractUF(s)) hits++;
+        }
+
+        if (tested < 20) continue;
+        const ratio = hits / tested;
+        const avgLen = totalLen / tested;
+
+        const hn = normalizeHeader(key);
+        let bonus = 0;
+        if (hn.includes('ENTREGA') || hn.includes('DESTINO') || hn.includes('LOCAL')) bonus += 0.25;
+        if (hn.includes('CIDADE') || hn.includes('MUNICIP') || hn.includes('MUNICÍP')) bonus += 0.15;
+        if (avgLen >= 6) bonus += 0.10;
+
+        const score = ratio + bonus;
+        if (score > bestScore) {
+            bestScore = score;
+            bestKey = key;
+            bestRatio = ratio;
+        }
+    }
+
+    if (!bestKey) return null;
+    return bestRatio >= 0.12 ? bestKey : null;
+}
+
 function setFilterCols(rows) {
     filterCols = {
-        montadora: findCol(rows, ['MONTADORA','MOTADORA','MONTADORA/GRUPO','MONTADORA GRUPO']),
-        proprietario: findCol(rows, ['PROPRIETARIO','PROPRIETÁRIO','CLIENTE','PROPRIETARIO/CLIENTE','PROPRIETARIO CLIENTE','PROPRIETARIO_CLIENTE']),
+        montadora: findBestKey(rows, ['MONTADORA','MOTADORA','MONTADORA/GRUPO','MONTADORA GRUPO','MONTADORA_GRUPO'], ['MONTADOR','MOTADOR','MONTAD']),
+        proprietario: findBestKey(rows, ['PROPRIETARIO','PROPRIETÁRIO','CLIENTE','PROPRIETARIO/CLIENTE','PROPRIETARIO CLIENTE','PROPRIETARIO_CLIENTE','PROPRIETARIO/CLIENTE'], ['PROPRIETAR','CLIENTE']),
     };
+    console.log('[mapa] Colunas filtro → montadora:', filterCols.montadora, '| proprietario:', filterCols.proprietario, '| filtros:', currentFilters);
 }
 
 function getFilteredRows(rows) {
@@ -579,19 +672,29 @@ function processInventario(rows) {
     }
 
     // Log das colunas disponíveis para debug
-    const keys = Object.keys(rows[0]);
+    const keys = collectKeys(rows);
     console.log('[mapa] Colunas:', keys);
 
     const cStat  = findCol(rows, ['STAT_FAT','STAT FAT','STATUS_FATURAMENTO','STATUS FAT','STATFAT']);
-    const cLocal = findCol(rows, ['LOCAL_ENTREGA','LOCAL ENTREGA','LOCAL DE ENTREGA','LOC_ENTREGA','LOC ENTREGA','LOCALENTREGA']);
+    let cLocal = findBestKey(
+        rows,
+        [
+            'LOCAL_ENTREGA','LOCAL ENTREGA','LOCAL DE ENTREGA','LOC_ENTREGA','LOC ENTREGA','LOCALENTREGA',
+            'DESTINO','CIDADE DESTINO','CIDADE_DESTINO','MUNICIPIO DESTINO','MUNICIPIO_DESTINO','MUNICÍPIO DESTINO',
+            'LOCAL_DESTINO','LOCAL DESTINO','LOCAL DE DESTINO','CIDADE','MUNICIPIO','MUNICÍPIO','UF_DESTINO','UF DESTINO'
+        ],
+        ['ENTREGA','DESTINO','LOCAL','CIDADE','MUNICIP']
+    );
     const cChassi= findCol(rows, ['CHASSI','CHASSIS','NR_CHASSI','NR CHASSI','NRCHASSI']);
     const cModelo= findCol(rows, ['MODELO','MODEL','DESC_MODELO','DESCRICAO_MODELO','DESCMODELO']);
+
+    if (!cLocal) cLocal = detectLocalKeyByValues(rows);
 
     console.log('[mapa] Colunas mapeadas → STAT_FAT:', cStat, '| LOCAL_ENTREGA:', cLocal, '| CHASSI:', cChassi);
 
     // Se não achou STAT_FAT pelo findCol, tenta acesso direto
     const statKey  = cStat  || (keys.includes('STAT_FAT')  ? 'STAT_FAT'  : null);
-    const localKey = cLocal || (keys.includes('LOCAL_ENTREGA') ? 'LOCAL_ENTREGA' : null);
+    const localKey = cLocal || null;
 
     // Filtra faturados
     const fat = rows.filter(r => {
