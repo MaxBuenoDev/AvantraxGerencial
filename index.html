@@ -699,6 +699,10 @@
             <button class="filters-btn primary" id="filters-apply" type="button">APLICAR</button>
         </div>
 
+        <div class="filters-actions">
+            <button class="filters-btn" id="filters-upload" type="button">NOVO UPLOAD</button>
+        </div>
+
         <div class="filters-hint">Abrir/fechar: clique no canto superior direito ou atalho <strong>Ctrl</strong>+<strong>Shift</strong>+<strong>F</strong>.</div>
     </div>
 
@@ -991,7 +995,106 @@
     </div>
     </div>
 
-    <script>
+    <script type="module">
+        import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
+
+        const qs = new URLSearchParams(window.location.search);
+        const TV_MODE = qs.has('tv');
+        const STANDALONE_MODE = qs.has('standalone');
+
+        if (!TV_MODE && !STANDALONE_MODE) {
+            window.location.replace('tv.html');
+        }
+
+        const SupabaseStore = {
+            bucket: 'avantrax-files',
+            _client: null,
+
+            getConfig() {
+                const viteEnv = (typeof import.meta !== 'undefined' && import.meta && import.meta.env) ? import.meta.env : undefined;
+                const url = (viteEnv && viteEnv.VITE_SUPABASE_URL) || window.SUPABASE_URL;
+                const key = (viteEnv && viteEnv.VITE_SUPABASE_ANON_KEY) || window.SUPABASE_ANON_KEY;
+                return { url, key };
+            },
+
+            isConfigured() {
+                const { url, key } = this.getConfig();
+                return Boolean(url && key);
+            },
+
+            getClient() {
+                if (this._client) return this._client;
+                const { url, key } = this.getConfig();
+                if (!url || !key) return null;
+                this._client = createClient(url, key);
+                return this._client;
+            },
+
+            tableForType(type) {
+                return type === 'embarcados' ? 'embarcados_uploads' : 'inventario_uploads';
+            },
+
+            safePathSegment(value) {
+                return String(value || 'arquivo')
+                    .replace(/[\\/]+/g, '-')
+                    .replace(/[^\w.\- ]+/g, '')
+                    .trim()
+                    .replace(/\s+/g, '_')
+                    .slice(0, 180);
+            },
+
+            makeStoragePath(type, fileName) {
+                const ts = new Date().toISOString().replace(/[:.]/g, '-');
+                return `${type}/${ts}-${this.safePathSegment(fileName)}`;
+            },
+
+            async uploadFile(type, file) {
+                const supabase = this.getClient();
+                if (!supabase) throw new Error('Supabase não configurado (VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY).');
+                const path = this.makeStoragePath(type, file?.name || `${type}.xlsx`);
+
+                const { error: upErr } = await supabase.storage
+                    .from(this.bucket)
+                    .upload(path, file, { upsert: false, contentType: file?.type || undefined });
+                if (upErr) throw upErr;
+
+                const table = this.tableForType(type);
+                const payload = {
+                    file_name: file?.name || null,
+                    storage_path: path,
+                    file_size: typeof file?.size === 'number' ? file.size : null,
+                    mime_type: file?.type || null,
+                };
+                const { error: insErr } = await supabase.from(table).insert([payload]);
+                if (insErr) throw insErr;
+                return payload;
+            },
+
+            async getLatestUpload(type) {
+                const supabase = this.getClient();
+                if (!supabase) return null;
+                const table = this.tableForType(type);
+                const { data, error } = await supabase
+                    .from(table)
+                    .select('file_name, storage_path, created_at, file_size, mime_type')
+                    .order('created_at', { ascending: false })
+                    .limit(1)
+                    .maybeSingle();
+                if (error) throw error;
+                return data || null;
+            },
+
+            async downloadLatestFile(type) {
+                const supabase = this.getClient();
+                if (!supabase) return null;
+                const latest = await this.getLatestUpload(type);
+                if (!latest?.storage_path) return null;
+                const { data: blob, error } = await supabase.storage.from(this.bucket).download(latest.storage_path);
+                if (error) throw error;
+                return { blob, meta: latest };
+            },
+        };
+
         const ViewportScale = {
             designWidth: 1920,
             designHeight: 1080,
@@ -1271,29 +1374,137 @@
 
         const Parser = {
             async parseFile(file) {
-                return new Promise((resolve, reject) => {
-                    const reader = new FileReader();
-                    reader.onload = (e) => {
-                        const data = new Uint8Array(e.target.result);
-                        const workbook = XLSX.read(data, { type: 'array' });
-                        const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-                        resolve(XLSX.utils.sheet_to_json(worksheet));
-                    };
-                    reader.onerror = reject;
-                    reader.readAsArrayBuffer(file);
-                });
+                const getBuffer = async () => {
+                    if (file && typeof file.arrayBuffer === 'function') return file.arrayBuffer();
+                    return new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onload = (e) => resolve(e.target.result);
+                        reader.onerror = reject;
+                        reader.readAsArrayBuffer(file);
+                    });
+                };
+
+                const buffer = await getBuffer();
+                const data = new Uint8Array(buffer);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+                return XLSX.utils.sheet_to_json(worksheet);
             }
         };
 
         const DashboardRender = {
             charts: {},
+            rotationMs: 120000,
+            _rotationTimer: 0,
+            _embFile: null,
+            _invFile: null,
 
-            init() {
+            startRotationToMap() {
+                if (TV_MODE) return;
+                this.stopRotation();
+                this._rotationTimer = window.setTimeout(() => {
+                    window.location.href = 'mapa.html';
+                }, this.rotationMs);
+            },
+
+            stopRotation() {
+                if (!this._rotationTimer) return;
+                clearTimeout(this._rotationTimer);
+                this._rotationTimer = 0;
+            },
+
+            openUploadOverlay() {
+                this.stopRotation();
+                this._embFile = null;
+                this._invFile = null;
+
+                const inputEmb = document.getElementById('input-embarcados');
+                const inputInv = document.getElementById('input-inventario');
+                if (inputEmb) inputEmb.value = '';
+                if (inputInv) inputInv.value = '';
+
+                const boxEmb = document.getElementById('box-embarcados');
+                const boxInv = document.getElementById('box-inventario');
+                const labelEmb = document.getElementById('label-embarcados');
+                const labelInv = document.getElementById('label-inventario');
+                if (boxEmb) boxEmb.classList.remove('loaded');
+                if (boxInv) boxInv.classList.remove('loaded');
+                if (labelEmb) labelEmb.textContent = 'Clique para selecionar';
+                if (labelInv) labelInv.textContent = 'Clique para selecionar';
+
+                const btnStart = document.getElementById('btn-start');
+                if (btnStart) { btnStart.disabled = true; btnStart.textContent = 'INICIAR DASHBOARD'; }
+
+                const overlay = document.getElementById('upload-overlay');
+                if (overlay) {
+                    overlay.style.display = 'flex';
+                    overlay.style.opacity = '1';
+                }
+                const dash = document.getElementById('dashboard');
+                if (dash) dash.style.display = 'none';
+            },
+
+            async init() {
                 DataService.loadFilters();
                 this.setupClock();
                 this.setupUploadListeners();
                 this.setupRefresh();
                 this.setupFilters();
+                await this.tryLoadFromSupabase();
+            },
+
+            async tryLoadFromSupabase() {
+                if (!SupabaseStore.isConfigured()) return;
+
+                const btnStart = document.getElementById('btn-start');
+                const labelEmb = document.getElementById('label-embarcados');
+                const labelInv = document.getElementById('label-inventario');
+                const boxEmb = document.getElementById('box-embarcados');
+                const boxInv = document.getElementById('box-inventario');
+
+                if (labelEmb) labelEmb.textContent = 'Carregando do Supabase...';
+                if (labelInv) labelInv.textContent = 'Carregando do Supabase...';
+                if (btnStart) { btnStart.textContent = 'CARREGANDO...'; btnStart.disabled = true; }
+
+                try {
+                    const [emb, inv] = await Promise.all([
+                        SupabaseStore.downloadLatestFile('embarcados'),
+                        SupabaseStore.downloadLatestFile('inventario'),
+                    ]);
+
+                    if (!emb?.blob || !inv?.blob) {
+                        if (btnStart) { btnStart.textContent = 'INICIAR DASHBOARD'; btnStart.disabled = true; }
+                        if (labelEmb) labelEmb.textContent = 'Clique para selecionar';
+                        if (labelInv) labelInv.textContent = 'Clique para selecionar';
+                        return;
+                    }
+
+                    if (boxEmb) boxEmb.classList.add('loaded');
+                    if (boxInv) boxInv.classList.add('loaded');
+                    if (labelEmb) labelEmb.textContent = emb?.meta?.file_name || 'embarcados.xlsx';
+                    if (labelInv) labelInv.textContent = inv?.meta?.file_name || 'inventario_de_patio.xlsx';
+
+                    const [dataEmb, dataInv] = await Promise.all([
+                        Parser.parseFile(emb.blob),
+                        Parser.parseFile(inv.blob),
+                    ]);
+                    DataService.setData('embarcados', dataEmb);
+                    DataService.setData('inventario', dataInv);
+                    this.renderAll();
+                    document.getElementById('upload-overlay').style.opacity = '0';
+                    setTimeout(() => {
+                        document.getElementById('upload-overlay').style.display = 'none';
+                        document.getElementById('dashboard').style.display = 'flex';
+                        this.enterFullscreen();
+                        this.startRotationToMap();
+                        postReadyToParent();
+                    }, 500);
+                } catch (err) {
+                    console.warn('Falha ao carregar do Supabase. Mantendo upload manual.', err);
+                    if (btnStart) { btnStart.textContent = 'INICIAR DASHBOARD'; btnStart.disabled = true; }
+                    if (labelEmb) labelEmb.textContent = 'Clique para selecionar';
+                    if (labelInv) labelInv.textContent = 'Clique para selecionar';
+                }
             },
 
             setupClock() {
@@ -1311,22 +1522,23 @@
                 const inputEmb = document.getElementById('input-embarcados');
                 const inputInv = document.getElementById('input-inventario');
                 const btnStart = document.getElementById('btn-start');
-                let embFile = null, invFile = null;
+                this._embFile = null;
+                this._invFile = null;
 
                 inputEmb.onchange = (e) => {
-                    embFile = e.target.files[0];
-                    if (embFile) {
+                    this._embFile = e.target.files[0];
+                    if (this._embFile) {
                         document.getElementById('box-embarcados').classList.add('loaded');
-                        document.getElementById('label-embarcados').textContent = embFile.name;
-                        if (embFile && invFile) btnStart.disabled = false;
+                        document.getElementById('label-embarcados').textContent = this._embFile.name;
+                        if (this._embFile && this._invFile) btnStart.disabled = false;
                     }
                 };
                 inputInv.onchange = (e) => {
-                    invFile = e.target.files[0];
-                    if (invFile) {
+                    this._invFile = e.target.files[0];
+                    if (this._invFile) {
                         document.getElementById('box-inventario').classList.add('loaded');
-                        document.getElementById('label-inventario').textContent = invFile.name;
-                        if (embFile && invFile) btnStart.disabled = false;
+                        document.getElementById('label-inventario').textContent = this._invFile.name;
+                        if (this._embFile && this._invFile) btnStart.disabled = false;
                     }
                 };
 
@@ -1334,16 +1546,34 @@
                     btnStart.textContent = "PROCESSANDO...";
                     btnStart.disabled = true;
                     try {
-                        const dataEmb = await Parser.parseFile(embFile);
-                        const dataInv = await Parser.parseFile(invFile);
+                        const dataEmb = await Parser.parseFile(this._embFile);
+                        const dataInv = await Parser.parseFile(this._invFile);
                         DataService.setData('embarcados', dataEmb);
                         DataService.setData('inventario', dataInv);
                         this.renderAll();
+
+                        if (SupabaseStore.isConfigured()) {
+                            try {
+                                btnStart.textContent = "ENVIANDO PARA SUPABASE...";
+                                await Promise.all([
+                                    SupabaseStore.uploadFile('embarcados', this._embFile),
+                                    SupabaseStore.uploadFile('inventario', this._invFile),
+                                ]);
+                                if (TV_MODE) {
+                                    try { window.parent?.postMessage({ type: 'avantrax:data_updated' }, '*'); } catch (_) {}
+                                }
+                            } catch (err) {
+                                console.warn('Falha ao enviar para Supabase. Dashboard seguirá com dados locais.', err);
+                            }
+                        }
+
                         document.getElementById('upload-overlay').style.opacity = '0';
                         setTimeout(() => {
                             document.getElementById('upload-overlay').style.display = 'none';
                             document.getElementById('dashboard').style.display = 'flex';
                             this.enterFullscreen();
+                            this.startRotationToMap();
+                            postReadyToParent();
                         }, 500);
                     } catch (err) {
                         alert("Erro ao processar arquivos. Verifique o formato.");
@@ -1356,9 +1586,7 @@
 
             setupRefresh() {
                 document.getElementById('btn-refresh').onclick = () => {
-                    document.getElementById('upload-overlay').style.display = 'flex';
-                    document.getElementById('upload-overlay').style.opacity = '1';
-                    document.getElementById('dashboard').style.display = 'none';
+                    this.openUploadOverlay();
                 };
             },
 
@@ -1368,6 +1596,7 @@
                 const closeBtn          = document.getElementById('filters-close');
                 const applyBtn          = document.getElementById('filters-apply');
                 const clearBtn          = document.getElementById('filters-clear');
+                const uploadBtn         = document.getElementById('filters-upload');
                 const montadoraSelect   = document.getElementById('filter-montadora');
                 const proprietarioSelect= document.getElementById('filter-proprietario');
                 const tuneScale         = document.getElementById('tune-scale');
@@ -1399,6 +1628,7 @@
                 closeBtn.onclick = close;
                 applyBtn.onclick = () => { applyFromUI(); close(); };
                 clearBtn.onclick = () => { DataService.clearFilters(); this.refreshFiltersUI(); this.renderAll(); };
+                if (uploadBtn) uploadBtn.onclick = () => { close(); this.openUploadOverlay(); };
                 montadoraSelect.onchange    = applyFromUI;
                 proprietarioSelect.onchange = applyFromUI;
 
@@ -1460,6 +1690,7 @@
             },
 
             enterFullscreen() {
+                if (TV_MODE) return;
                 if (document.documentElement.requestFullscreen) {
                     document.documentElement.requestFullscreen().catch(() => {});
                 }
@@ -2229,10 +2460,23 @@
             }
         };
 
-        window.onload = () => {
+        window.onload = async () => {
             Animations.init();
-            DashboardRender.init();
+            await DashboardRender.init();
         };
+
+        const postReadyToParent = () => {
+            if (!TV_MODE) return;
+            try { window.parent?.postMessage({ type: 'avantrax:ready', page: 'index' }, '*'); } catch (_) {}
+        };
+
+        window.addEventListener('message', async (e) => {
+            const data = e?.data;
+            if (!data || typeof data !== 'object') return;
+            if (data.type === 'avantrax:refresh') {
+                try { await DashboardRender.tryLoadFromSupabase(); } catch (_) {}
+            }
+        });
     </script>
 </body>
 </html>
