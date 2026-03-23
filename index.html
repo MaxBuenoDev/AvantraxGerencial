@@ -203,6 +203,35 @@
 
         .badge.active { color: var(--success); border-color: var(--success); }
 
+        /* countdown (Troca em) - estilo igual "Dashboard em" */
+        #screen-countdown.cdown{
+            display:flex;
+            align-items:center;
+            gap:10px;
+            font-family:'JetBrains Mono', monospace;
+            color: var(--text-dim);
+        }
+        .cbar-wrap{
+            width:110px;
+            height:4px;
+            background:rgba(255,255,255,.06);
+            border-radius:4px;
+            overflow:hidden;
+        }
+        .cbar{
+            height:100%;
+            border-radius:4px;
+            background:linear-gradient(90deg, var(--accent-blue), var(--accent-cyan));
+            box-shadow:0 0 8px rgba(0,191,255,.5);
+            transition:width 1s linear;
+        }
+        #screen-countdown-txt{
+            color: var(--accent-cyan);
+            font-weight: 700;
+            min-width: 40px;
+            text-align:right;
+        }
+
         .clock-area {
             text-align: right;
             font-family: 'JetBrains Mono', monospace;
@@ -239,7 +268,7 @@
             letter-spacing: 1px;
             margin-bottom: 10px;
             height: 30px;
-            display: flex;
+            display: none;
             align-items: center;
             justify-content: center;
         }
@@ -334,31 +363,6 @@
         }
 
 
-
-        .refresh-btn {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            width: 50px;
-            height: 50px;
-            background: var(--bg-card);
-            border: 1px solid var(--glass-border);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            z-index: 500;
-            transition: all 0.3s;
-            color: var(--accent-cyan);
-            font-size: 1.5rem;
-        }
-
-        .refresh-btn:hover {
-            transform: rotate(180deg);
-            background: var(--accent-cyan);
-            color: var(--bg-dark);
-        }
 
         #filters-hotspot {
             position: fixed;
@@ -657,8 +661,6 @@
         </div>
     </div>
 
-    <!-- BOTÃO DE ATUALIZAÇÃO -->
-    <div class="refresh-btn" id="btn-refresh" title="Atualizar Dados">↻</div>
 
     <!-- HOTSPOT INVISÍVEL -->
     <div id="filters-hotspot" title="Filtros"></div>
@@ -717,8 +719,6 @@
                 <span style="letter-spacing: 3px; font-size: 0.9rem; font-weight: 300;">DASHBOARD GERENCIAL</span>
             </div>
             <div class="status-badges">
-                <div class="badge active" id="badge-embarcados">EMBARCADOS ✓</div>
-                <div class="badge active" id="badge-inventario">INVENTÁRIO ✓</div>
                 <div class="badge" id="last-update">ÚLTIMA ATUALIZAÇÃO: --:--</div>
                 <div class="badge" id="screen-countdown">TROCA EM: 2:00</div>
             </div>
@@ -1409,21 +1409,44 @@
             _rotationTimer: 0,
             _countdownTimer: 0,
             _countdownEndAt: 0,
+            _countdownTotalMs: 0,
             _embFile: null,
             _invFile: null,
 
             startCountdown(durationMs) {
                 this.stopCountdown();
-                this._countdownEndAt = Date.now() + Math.max(0, Number(durationMs) || 0);
+                this._countdownTotalMs = Math.max(0, Number(durationMs) || 0);
+                this._countdownEndAt = Date.now() + this._countdownTotalMs;
+
+                const ensureMarkup = () => {
+                    const el = document.getElementById('screen-countdown');
+                    if (!el) return null;
+                    if (!el.dataset.cdownReady) {
+                        el.dataset.cdownReady = '1';
+                        el.classList.add('cdown');
+                        el.innerHTML = `
+                            <span>Troca em:</span>
+                            <div class="cbar-wrap"><div class="cbar" id="cbar-index" style="width:100%"></div></div>
+                            <span id="screen-countdown-txt">2:00</span>
+                        `.trim();
+                    }
+                    return el;
+                };
 
                 const tick = () => {
-                    const el = document.getElementById('screen-countdown');
-                    if (!el) return;
+                    if (!ensureMarkup()) return;
                     const remainingMs = Math.max(0, this._countdownEndAt - Date.now());
                     const totalSec = Math.ceil(remainingMs / 1000);
                     const m = Math.floor(totalSec / 60);
                     const s = totalSec % 60;
-                    el.textContent = `TROCA EM: ${m}:${String(s).padStart(2, '0')}`;
+                    const txt = document.getElementById('screen-countdown-txt');
+                    if (txt) txt.textContent = `${m}:${String(s).padStart(2, '0')}`;
+
+                    const bar = document.getElementById('cbar-index');
+                    if (bar && this._countdownTotalMs > 0) {
+                        const pct = Math.max(0, Math.min(1, remainingMs / this._countdownTotalMs)) * 100;
+                        bar.style.width = `${pct}%`;
+                    }
                     if (remainingMs <= 0) this.stopCountdown();
                 };
 
@@ -1436,6 +1459,7 @@
                 clearInterval(this._countdownTimer);
                 this._countdownTimer = 0;
                 this._countdownEndAt = 0;
+                this._countdownTotalMs = 0;
             },
 
             startRotationToMap() {
@@ -1493,7 +1517,6 @@
                 }
                 this.setupClock();
                 this.setupUploadListeners();
-                this.setupRefresh();
                 this.setupFilters();
                 await this.tryLoadFromSupabase();
             },
@@ -1626,12 +1649,6 @@
                         btnStart.disabled = false;
                         btnStart.textContent = "INICIAR DASHBOARD";
                     }
-                };
-            },
-
-            setupRefresh() {
-                document.getElementById('btn-refresh').onclick = () => {
-                    this.openUploadOverlay();
                 };
             },
 
