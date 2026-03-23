@@ -29,6 +29,39 @@
             z-index:1;display:flex;flex-direction:column;padding:18px;gap:14px;
         }
 
+        /* ─── FILTERS PANEL (Ctrl+Shift+F) ─── */
+        #filters-hotspot{
+            position:fixed;top:0;right:0;width:44px;height:44px;z-index:1201;background:transparent;
+        }
+        #filters-panel{
+            position:fixed;top:90px;right:30px;width:380px;z-index:1300;display:none;
+            padding:18px;background:var(--bg-card);border:1px solid var(--border);border-radius:18px;
+            backdrop-filter:blur(20px);box-shadow:0 0 60px rgba(0,191,255,.12);
+        }
+        #filters-panel.open{display:block;}
+        .filters-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
+        .filters-title{font-weight:800;letter-spacing:1px;color:var(--cyan);}
+        .filters-close{cursor:pointer;font-weight:800;width:28px;height:28px;border-radius:9px;
+            display:flex;align-items:center;justify-content:center;color:var(--dim);
+            background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);transition:.2s;}
+        .filters-close:hover{color:#fff;border-color:rgba(0,191,255,.25);background:rgba(0,191,255,.08);}
+        .filters-grid{display:grid;grid-template-columns:1fr;gap:10px;}
+        .filter-row{display:flex;flex-direction:column;gap:6px;}
+        .filter-label{font-size:.75rem;color:var(--dim);font-weight:700;}
+        .filter-select{
+            width:100%;padding:10px 12px;border-radius:12px;background:rgba(255,255,255,0.04);
+            border:1px solid rgba(255,255,255,0.08);color:var(--text);font-weight:700;outline:none;
+        }
+        .filters-actions{display:flex;gap:10px;margin-top:12px;}
+        .filters-btn{
+            flex:1;padding:10px 0;border-radius:12px;cursor:pointer;font-weight:800;letter-spacing:1px;
+            background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);color:var(--dim);
+            transition:.2s;
+        }
+        .filters-btn.primary{background:linear-gradient(90deg,var(--blue),var(--cyan));color:#fff;border:none;}
+        .filters-btn:hover{transform:translateY(-1px);border-color:rgba(255,255,255,0.18);}
+        .filters-hint{margin-top:10px;font-size:.75rem;color:var(--dim);opacity:.85;user-select:text;}
+
         /* ─── UPLOAD OVERLAY ─── */
         #upload-overlay{
             position:fixed;top:0;left:0;width:100%;height:100%;
@@ -213,6 +246,46 @@
 <div class="scan"></div>
 <canvas id="particles-canvas"></canvas>
 
+<!-- HOTSPOT INVISÍVEL -->
+<div id="filters-hotspot" title="Filtros"></div>
+
+<!-- PAINEL DE FILTROS -->
+<div id="filters-panel" aria-hidden="true">
+    <div class="filters-header">
+        <div class="filters-title">FILTROS</div>
+        <div class="filters-close" id="filters-close" title="Fechar">✕</div>
+    </div>
+    <div class="filters-grid">
+        <div class="filter-row" id="filter-row-montadora">
+            <div class="filter-label">Montadora</div>
+            <select class="filter-select" id="filter-montadora"></select>
+        </div>
+        <div class="filter-row" id="filter-row-proprietario">
+            <div class="filter-label">Proprietários</div>
+            <select class="filter-select" id="filter-proprietario"></select>
+        </div>
+        <div class="filter-row" id="tune-row-scale">
+            <div class="filter-label">Zoom</div>
+            <div style="display:flex; gap:10px; align-items:center;">
+                <input class="filter-select" id="tune-scale" type="range" min="80" max="100" step="1" value="100" style="padding: 8px 10px;">
+                <div style="width:52px; text-align:right; font-family:'JetBrains Mono', monospace;" id="tune-scale-val">100%</div>
+            </div>
+        </div>
+        <div class="filter-row" id="tune-row-offsety">
+            <div class="filter-label">Subir</div>
+            <div style="display:flex; gap:10px; align-items:center;">
+                <input class="filter-select" id="tune-offsety" type="range" min="-180" max="180" step="5" value="0" style="padding: 8px 10px;">
+                <div style="width:52px; text-align:right; font-family:'JetBrains Mono', monospace;" id="tune-offsety-val">0</div>
+            </div>
+        </div>
+    </div>
+    <div class="filters-actions">
+        <button class="filters-btn" id="filters-clear" type="button">LIMPAR</button>
+        <button class="filters-btn primary" id="filters-apply" type="button">APLICAR</button>
+    </div>
+    <div class="filters-hint">Abrir/fechar: clique no canto superior direito ou atalho <strong>Ctrl</strong>+<strong>Shift</strong>+<strong>F</strong>.</div>
+</div>
+
 <!-- ══════════════════════════════════════════
      UPLOAD OVERLAY (aparece só se não há dados)
 ══════════════════════════════════════════════ -->
@@ -276,6 +349,12 @@
             <div class="card" style="flex:1;display:flex;flex-direction:column;">
                 <div class="ct">🏆 Top Estados</div>
                 <div id="top-states" style="flex:1;overflow:hidden;">
+                    <div class="nodata"><span>📊</span>Aguardando...</div>
+                </div>
+            </div>
+            <div class="card" style="height:220px;display:flex;flex-direction:column;">
+                <div class="ct">🌍 Top Países</div>
+                <div id="top-countries" style="flex:1;overflow:hidden;">
                     <div class="nodata"><span>📊</span>Aguardando...</div>
                 </div>
             </div>
@@ -515,11 +594,220 @@ function extractUF(local) {
 // ════════════════════════════════════════════════════════════════
 // DATA PROCESSING
 // ════════════════════════════════════════════════════════════════
-let stateMap = {}, localMap = {};
+let stateMap = {}, localMap = {}, countryMap = {};
 let lastInventarioRows = null;
 let currentFilters = { montadora: '', proprietario: '' };
 let filterCols = { montadora: null, proprietario: null };
 let dashboardVisible = false;
+
+const ViewportScale = {
+    designWidth: 1920,
+    designHeight: 1080,
+    _pendingRaf: 0,
+    tuneKey: 'avantrax.viewport.tune.v1',
+    tune: { scalePct: 100, offsetY: 0 },
+
+    loadTune() {
+        try {
+            const raw = localStorage.getItem(this.tuneKey);
+            if (!raw) return;
+            const parsed = JSON.parse(raw);
+            if (!parsed || typeof parsed !== 'object') return;
+            const scalePct = Number(parsed.scalePct);
+            const offsetY = Number(parsed.offsetY);
+            if (Number.isFinite(scalePct)) this.tune.scalePct = Math.min(100, Math.max(80, Math.round(scalePct)));
+            if (Number.isFinite(offsetY)) this.tune.offsetY = Math.min(180, Math.max(-180, Math.round(offsetY)));
+        } catch (_) {}
+    },
+
+    persistTune() {
+        try { localStorage.setItem(this.tuneKey, JSON.stringify(this.tune)); } catch (_) {}
+    },
+
+    setTune(next) {
+        if (next && typeof next === 'object') {
+            if (next.scalePct !== undefined) {
+                const v = Number(next.scalePct);
+                if (Number.isFinite(v)) this.tune.scalePct = Math.min(100, Math.max(80, Math.round(v)));
+            }
+            if (next.offsetY !== undefined) {
+                const v = Number(next.offsetY);
+                if (Number.isFinite(v)) this.tune.offsetY = Math.min(180, Math.max(-180, Math.round(v)));
+            }
+        }
+        this.persistTune();
+        this.apply();
+    },
+
+    apply() {
+        const root = document.getElementById('design-root');
+        if (!root) return;
+        const viewport = window.visualViewport || null;
+        const vw = (viewport && viewport.width)  ? viewport.width  : window.innerWidth;
+        const vh = (viewport && viewport.height) ? viewport.height : window.innerHeight;
+        const vpLeft = viewport && typeof viewport.offsetLeft === 'number' ? viewport.offsetLeft : 0;
+        const vpTop  = viewport && typeof viewport.offsetTop  === 'number' ? viewport.offsetTop  : 0;
+
+        const base = Math.min(vw / this.designWidth, vh / this.designHeight);
+        const baseScale = Number.isFinite(base) && base > 0 ? base : 1;
+        const tuneScale = (this.tune.scalePct || 100) / 100;
+        const desiredScale = baseScale * tuneScale;
+
+        const setScaleAndCenter = (scale) => {
+            document.documentElement.style.setProperty('--ui-scale', String(scale));
+            const offsetX = Math.max(0, (vw - this.designWidth  * scale) / 2);
+            const offsetY = Math.max(0, (vh - this.designHeight * scale) / 2) + (this.tune.offsetY || 0) * scale;
+            root.style.left = `${Math.floor(offsetX + vpLeft)}px`;
+            root.style.top  = `${Math.floor(offsetY + vpTop )}px`;
+        };
+
+        setScaleAndCenter(desiredScale);
+
+        if (this._pendingRaf) cancelAnimationFrame(this._pendingRaf);
+        this._pendingRaf = requestAnimationFrame(() => {
+            this._pendingRaf = 0;
+            const rect = root.getBoundingClientRect();
+            const overflowX = rect.right  - (vpLeft + vw);
+            const overflowY = rect.bottom - (vpTop  + vh);
+            if (overflowX <= 0.5 && overflowY <= 0.5) return;
+            const fitX = vw / Math.max(1, rect.width);
+            const fitY = vh / Math.max(1, rect.height);
+            const corrected = desiredScale * Math.min(fitX, fitY) * 0.992;
+            const nextScale = Number.isFinite(corrected) && corrected > 0 ? corrected : desiredScale;
+            setScaleAndCenter(nextScale);
+        });
+    },
+
+    init() {
+        this.loadTune();
+        this.apply();
+        window.addEventListener('resize', () => this.apply(), { passive: true });
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener('resize', () => this.apply(), { passive: true });
+            window.visualViewport.addEventListener('scroll',  () => this.apply(), { passive: true });
+        }
+    }
+};
+ViewportScale.init();
+
+const FiltersUI = {
+    init() {
+        const panel   = document.getElementById('filters-panel');
+        const hotspot = document.getElementById('filters-hotspot');
+        const closeBtn= document.getElementById('filters-close');
+        const applyBtn= document.getElementById('filters-apply');
+        const clearBtn= document.getElementById('filters-clear');
+        const montSel = document.getElementById('filter-montadora');
+        const propSel = document.getElementById('filter-proprietario');
+        const tuneScale = document.getElementById('tune-scale');
+        const tuneScaleVal = document.getElementById('tune-scale-val');
+        const tuneOffsetY = document.getElementById('tune-offsety');
+        const tuneOffsetYVal = document.getElementById('tune-offsety-val');
+        if (!panel || !hotspot || !closeBtn || !applyBtn || !clearBtn || !montSel || !propSel) return;
+
+        const open = () => {
+            panel.classList.add('open');
+            panel.setAttribute('aria-hidden', 'false');
+            this.refreshUI();
+            if (tuneScale)    tuneScale.value    = String(ViewportScale.tune.scalePct ?? 100);
+            if (tuneScaleVal) tuneScaleVal.textContent = `${ViewportScale.tune.scalePct ?? 100}%`;
+            if (tuneOffsetY)  tuneOffsetY.value  = String(ViewportScale.tune.offsetY ?? 0);
+            if (tuneOffsetYVal) tuneOffsetYVal.textContent = String(ViewportScale.tune.offsetY ?? 0);
+        };
+        const close = () => { panel.classList.remove('open'); panel.setAttribute('aria-hidden', 'true'); };
+        const toggle= () => { panel.classList.contains('open') ? close() : open(); };
+
+        const applyFromUI = () => {
+            currentFilters = {
+                montadora: montSel.value === '__ALL__' ? '' : montSel.value,
+                proprietario: propSel.value === '__ALL__' ? '' : propSel.value,
+            };
+            try { if (TV_MODE) window.parent?.postMessage({ type: 'avantrax:filters', filters: { ...currentFilters } }, '*'); } catch (_) {}
+            renderDashboard(lastInventarioRows || []);
+        };
+
+        hotspot.onclick = toggle;
+        closeBtn.onclick= close;
+        applyBtn.onclick= () => { applyFromUI(); close(); };
+        clearBtn.onclick= () => {
+            currentFilters = { montadora: '', proprietario: '' };
+            try { if (TV_MODE) window.parent?.postMessage({ type: 'avantrax:filters', filters: { ...currentFilters } }, '*'); } catch (_) {}
+            this.refreshUI();
+            renderDashboard(lastInventarioRows || []);
+        };
+        montSel.onchange = applyFromUI;
+        propSel.onchange = applyFromUI;
+
+        const applyTune = () => {
+            if (tuneScale) ViewportScale.setTune({ scalePct: Number(tuneScale.value) });
+            if (tuneOffsetY) ViewportScale.setTune({ offsetY: Number(tuneOffsetY.value) });
+            if (tuneScaleVal) tuneScaleVal.textContent = `${ViewportScale.tune.scalePct}%`;
+            if (tuneOffsetYVal) tuneOffsetYVal.textContent = String(ViewportScale.tune.offsetY);
+        };
+        if (tuneScale) tuneScale.oninput = applyTune;
+        if (tuneOffsetY) tuneOffsetY.oninput = applyTune;
+
+        window.addEventListener('keydown', (e) => {
+            const key = String(e.key || '').toLowerCase();
+            if (e.ctrlKey && e.shiftKey && key === 'f') { e.preventDefault(); toggle(); }
+            if (!panel.classList.contains('open')) return;
+            if (key === '-' || key === '_') { e.preventDefault(); ViewportScale.setTune({ scalePct: (ViewportScale.tune.scalePct ?? 100) - 2 }); open(); }
+            if (key === '=' || key === '+') { e.preventDefault(); ViewportScale.setTune({ scalePct: (ViewportScale.tune.scalePct ?? 100) + 2 }); open(); }
+            if (key === 'arrowup')   { e.preventDefault(); ViewportScale.setTune({ offsetY: (ViewportScale.tune.offsetY ?? 0) - 10 }); open(); }
+            if (key === 'arrowdown') { e.preventDefault(); ViewportScale.setTune({ offsetY: (ViewportScale.tune.offsetY ?? 0) + 10 }); open(); }
+        }, { passive:false });
+    },
+
+    populateFromRows(rows) {
+        const montSel = document.getElementById('filter-montadora');
+        const propSel = document.getElementById('filter-proprietario');
+        if (!montSel || !propSel) return;
+
+        const build = (key) => {
+            if (!key) return [];
+            const map = new Map();
+            (rows || []).slice(0, 5000).forEach(r => {
+                const raw = String((r && r[key]) || '').trim();
+                if (!raw) return;
+                const norm = normalizeComp(raw);
+                if (!norm) return;
+                if (!map.has(norm)) map.set(norm, raw);
+            });
+            return Array.from(map.entries())
+                .sort((a,b)=>a[1].localeCompare(b[1], 'pt-BR', { sensitivity:'base' }))
+                .map(([norm, raw]) => ({ value: norm, label: raw }));
+        };
+
+        const fill = (sel, opts) => {
+            const prev = sel.value;
+            sel.innerHTML = '';
+            const all = document.createElement('option');
+            all.value = '__ALL__';
+            all.textContent = 'TODOS';
+            sel.appendChild(all);
+            opts.forEach(o => {
+                const op = document.createElement('option');
+                op.value = o.value;
+                op.textContent = String(o.label || o.value).toUpperCase();
+                sel.appendChild(op);
+            });
+            sel.value = prev;
+        };
+
+        fill(montSel, build(filterCols.montadora));
+        fill(propSel, build(filterCols.proprietario));
+        this.refreshUI();
+    },
+
+    refreshUI() {
+        const montSel = document.getElementById('filter-montadora');
+        const propSel = document.getElementById('filter-proprietario');
+        if (!montSel || !propSel) return;
+        montSel.value = currentFilters.montadora ? normalizeComp(currentFilters.montadora) : '__ALL__';
+        propSel.value = currentFilters.proprietario ? normalizeComp(currentFilters.proprietario) : '__ALL__';
+    }
+};
+FiltersUI.init();
 
 function findCol(rows, candidates) {
     if (!rows.length) return null;
@@ -664,7 +952,7 @@ function getFilteredRows(rows) {
 }
 
 function processInventario(rows) {
-    stateMap = {}; localMap = {};
+    stateMap = {}; localMap = {}; countryMap = {};
 
     if (!rows || !rows.length) {
         console.warn('[mapa] rows vazio');
@@ -685,12 +973,13 @@ function processInventario(rows) {
         ],
         ['ENTREGA','DESTINO','LOCAL','CIDADE','MUNICIP']
     );
+    const cPais  = findCol(rows, ['PAIS_DESTINO','PAIS DESTINO','PAÍS_DESTINO','PAÍS DESTINO','PAIS','PAÍS']);
     const cChassi= findCol(rows, ['CHASSI','CHASSIS','NR_CHASSI','NR CHASSI','NRCHASSI']);
     const cModelo= findCol(rows, ['MODELO','MODEL','DESC_MODELO','DESCRICAO_MODELO','DESCMODELO']);
 
     if (!cLocal) cLocal = detectLocalKeyByValues(rows);
 
-    console.log('[mapa] Colunas mapeadas → STAT_FAT:', cStat, '| LOCAL_ENTREGA:', cLocal, '| CHASSI:', cChassi);
+    console.log('[mapa] Colunas mapeadas → STAT_FAT:', cStat, '| LOCAL_ENTREGA:', cLocal, '| PAIS_DESTINO:', cPais, '| CHASSI:', cChassi);
 
     // Se não achou STAT_FAT pelo findCol, tenta acesso direto
     const statKey  = cStat  || (keys.includes('STAT_FAT')  ? 'STAT_FAT'  : null);
@@ -715,6 +1004,8 @@ function processInventario(rows) {
     const vehicles = [];
 
     fat.forEach(r => {
+        const pais = cPais ? String(r[cPais]||'').trim() : '';
+        if (pais) countryMap[pais] = (countryMap[pais]||0) + 1;
         const local = localKey ? String(r[localKey]||'').trim() : '';
         if (!local || local === 'undefined') { semLocal++; return; }
         localMap[local] = (localMap[local]||0) + 1;
@@ -742,6 +1033,7 @@ function renderDashboard(rows) {
     lastInventarioRows = rows;
     ensureMapBuilt();
     setFilterCols(rows);
+    FiltersUI.populateFromRows(rows);
     const filtered = getFilteredRows(rows);
     const result = processInventario(filtered);
     renderAll(result);
@@ -950,12 +1242,33 @@ function renderAll(result) {
 
     colorMap();
     renderTopStates();
+    renderTopCountries();
     renderRegions(total);
     renderVehicles(vehicles);
     renderTopLocals();
 
     const now = new Date();
     document.getElementById('f-upd').textContent = now.toLocaleTimeString('pt-BR');
+}
+
+function renderTopCountries() {
+    const sorted = Object.entries(countryMap).sort((a,b)=>b[1]-a[1]).slice(0,7);
+    const el = document.getElementById('top-countries');
+    if (!el) return;
+    if (!sorted.length) { el.innerHTML='<div class="nodata"><span>📊</span>Nenhum país identificado</div>'; return; }
+    const max = sorted[0][1];
+    el.innerHTML='';
+    sorted.forEach(([pais,cnt],i)=>{
+        const pct = (cnt/max*100).toFixed(0);
+        const row = document.createElement('div');
+        row.className='srow';
+        row.innerHTML=`<div class="srnk">${i+1}</div>
+        <div class="snm" title="${pais}">${pais}</div>
+        <div class="strack"><div class="sfill" data-w="${pct}" style="width:0%;background:linear-gradient(90deg,var(--blue)77,var(--cyan));"></div></div>
+        <div class="scnt">${cnt}</div>`;
+        el.appendChild(row);
+    });
+    setTimeout(()=>{ el.querySelectorAll('.sfill').forEach(b=>b.style.width=b.dataset.w+'%'); },100);
 }
 
 function renderTopStates() {
@@ -1151,20 +1464,6 @@ function initParticles() {
 }
 
 // ════════════════════════════════════════════════════════════════
-// VIEWPORT SCALE
-// ════════════════════════════════════════════════════════════════
-function applyScale() {
-    const root=document.getElementById('design-root');
-    if(!root) return;
-    const vw=window.innerWidth, vh=window.innerHeight;
-    const scale=Math.min(vw/1920, vh/1080);
-    document.documentElement.style.setProperty('--ui-scale',String(scale));
-    root.style.left=Math.max(0,(vw-1920*scale)/2)+'px';
-    root.style.top=Math.max(0,(vh-1080*scale)/2)+'px';
-}
-window.addEventListener('resize', applyScale);
-
-// ════════════════════════════════════════════════════════════════
 // SHOW DASHBOARD
 // ════════════════════════════════════════════════════════════════
 function showDashboard(inventarioRows) {
@@ -1179,7 +1478,7 @@ function showDashboard(inventarioRows) {
         overlay.style.display='none';
         const root=document.getElementById('design-root');
         root.style.display='flex';
-        applyScale();
+        ViewportScale.apply();
         if (!TV_MODE) startCountdown();
         if (!TV_MODE) { try{ document.documentElement.requestFullscreen().catch(()=>{}); }catch(e){} }
         if (TV_MODE) { try { window.parent?.postMessage({ type: 'avantrax:ready', page: 'mapa' }, '*'); } catch (_) {} }
@@ -1234,7 +1533,7 @@ async function tryLoadFromSupabase() {
 // ════════════════════════════════════════════════════════════════
 window.addEventListener('load', async () => {
     initParticles();
-    applyScale();
+    ViewportScale.apply();
     startClock();
 
     if (TV_MODE) {
@@ -1242,7 +1541,7 @@ window.addEventListener('load', async () => {
         const root = document.getElementById('design-root');
         if (overlay) { overlay.style.display = 'none'; overlay.style.opacity = '0'; }
         if (root) root.style.display = 'flex';
-        applyScale();
+        ViewportScale.apply();
         await tryLoadFromSupabase();
         return;
     }
