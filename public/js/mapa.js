@@ -333,6 +333,10 @@ const FiltersUI = {
         window.addEventListener('keydown', (e) => {
             const key = String(e.key || '').toLowerCase();
             if (e.ctrlKey && e.shiftKey && key === 'f') { e.preventDefault(); toggle(); }
+            if (e.ctrlKey && e.shiftKey && key === 'p') {
+                e.preventDefault();
+                try { window.parent?.postMessage({ type: 'avantrax:manual_switch_open' }, '*'); } catch (_) {}
+            }
             if (!panel.classList.contains('open')) return;
             if (key === '-' || key === '_') { e.preventDefault(); ViewportScale.setTune({ scalePct: (ViewportScale.tune.scalePct ?? 100) - 2 }); open(); }
             if (key === '=' || key === '+') { e.preventDefault(); ViewportScale.setTune({ scalePct: (ViewportScale.tune.scalePct ?? 100) + 2 }); open(); }

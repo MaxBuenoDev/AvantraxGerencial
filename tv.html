@@ -25,11 +25,117 @@
       iframe.active {
         visibility: visible;
       }
+
+      /* Manual navigation modal */
+      #manual-nav-overlay {
+        position: fixed;
+        inset: 0;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        background: rgba(0, 0, 0, 0.55);
+        z-index: 9999;
+        font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans",
+          "Liberation Sans", sans-serif;
+      }
+      #manual-nav-overlay.open {
+        display: flex;
+      }
+      #manual-nav {
+        width: min(420px, calc(100vw - 32px));
+        background: rgba(15, 23, 42, 0.92);
+        border: 1px solid rgba(148, 163, 184, 0.22);
+        border-radius: 14px;
+        box-shadow: 0 18px 65px rgba(0, 0, 0, 0.6);
+        padding: 14px 14px 12px;
+        color: rgba(226, 232, 240, 0.95);
+      }
+      #manual-nav h3 {
+        margin: 0 0 8px;
+        font-size: 14px;
+        letter-spacing: 0.4px;
+        text-transform: uppercase;
+        color: rgba(226, 232, 240, 0.85);
+      }
+      #manual-nav .row {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 6px 10px;
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        font-size: 12px;
+      }
+      #manual-nav .k {
+        color: rgba(148, 163, 184, 0.9);
+      }
+      #manual-nav .v {
+        font-weight: 700;
+        color: rgba(224, 242, 254, 0.95);
+      }
+      #manual-nav .hint {
+        margin-top: 10px;
+        font-size: 11px;
+        color: rgba(148, 163, 184, 0.9);
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      #manual-nav .actions {
+        margin-top: 12px;
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+      }
+      .mn-btn {
+        appearance: none;
+        border: 1px solid rgba(148, 163, 184, 0.22);
+        background: rgba(255, 255, 255, 0.06);
+        color: rgba(226, 232, 240, 0.95);
+        padding: 8px 12px;
+        border-radius: 10px;
+        font-weight: 700;
+        font-size: 12px;
+        cursor: pointer;
+      }
+      .mn-btn.primary {
+        border-color: rgba(0, 229, 255, 0.45);
+        background: rgba(0, 229, 255, 0.12);
+      }
+      .mn-btn:disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+      }
     </style>
   </head>
   <body>
     <iframe id="frame-index" src="index.html?tv=1"></iframe>
     <iframe id="frame-mapa" src="mapa.html?tv=1"></iframe>
+
+    <div id="manual-nav-overlay" role="dialog" aria-modal="true" aria-hidden="true">
+      <div id="manual-nav">
+        <h3>Navegação manual</h3>
+        <div class="row" style="margin-bottom: 8px">
+          <div class="k">Tela atual</div>
+          <div class="v" id="mn-current">—</div>
+        </div>
+        <div class="row">
+          <div class="k">Próxima tela</div>
+          <div class="v" id="mn-next">—</div>
+        </div>
+        <div class="hint">
+          <span>Atalho: Ctrl+Shift+P</span>
+          <span>Enter = Próxima • Esc = Fechar</span>
+        </div>
+        <div class="actions">
+          <button class="mn-btn" id="mn-close" type="button">Fechar</button>
+          <button class="mn-btn primary" id="mn-go" type="button">Ir para próxima</button>
+        </div>
+      </div>
+    </div>
 
     <script>
       const DURATION_MS = 120000;
@@ -82,15 +188,91 @@
         postRefresh(next);
       }
 
+      let switchTimer = null;
+      function scheduleSwitch(ms = DURATION_MS) {
+        if (switchTimer) clearTimeout(switchTimer);
+        switchTimer = setTimeout(() => {
+          trySwitch();
+          scheduleSwitch(DURATION_MS);
+        }, ms);
+      }
+
+      const manualOverlay = document.getElementById("manual-nav-overlay");
+      const mnCurrent = document.getElementById("mn-current");
+      const mnNext = document.getElementById("mn-next");
+      const mnClose = document.getElementById("mn-close");
+      const mnGo = document.getElementById("mn-go");
+
+      function isManualOpen() {
+        return manualOverlay.classList.contains("open");
+      }
+
+      function updateManualUI() {
+        const next = getNext();
+        if (mnCurrent) mnCurrent.textContent = current === "index" ? "Dashboard" : "Mapa";
+        if (mnNext) mnNext.textContent = next === "index" ? "Dashboard" : "Mapa";
+        if (mnGo) mnGo.disabled = !ready[next];
+        if (mnGo) mnGo.textContent = ready[next] ? "Ir para próxima" : "Carregando…";
+      }
+
+      function openManualNav() {
+        updateManualUI();
+        manualOverlay.classList.add("open");
+        manualOverlay.setAttribute("aria-hidden", "false");
+        setTimeout(() => mnGo && mnGo.focus(), 0);
+      }
+
+      function closeManualNav() {
+        manualOverlay.classList.remove("open");
+        manualOverlay.setAttribute("aria-hidden", "true");
+      }
+
+      function goNextManual() {
+        const next = getNext();
+        if (!ready[next]) return;
+        closeManualNav();
+        trySwitch();
+        scheduleSwitch(DURATION_MS);
+      }
+
+      manualOverlay.addEventListener("click", (e) => {
+        if (e.target === manualOverlay) closeManualNav();
+      });
+      mnClose.addEventListener("click", closeManualNav);
+      mnGo.addEventListener("click", goNextManual);
+
+      window.addEventListener("keydown", (e) => {
+        const key = String(e.key || "").toLowerCase();
+        if (e.ctrlKey && e.shiftKey && key === "p") {
+          e.preventDefault();
+          isManualOpen() ? closeManualNav() : openManualNav();
+          return;
+        }
+        if (!isManualOpen()) return;
+        if (key === "escape") {
+          e.preventDefault();
+          closeManualNav();
+          return;
+        }
+        if (key === "enter") {
+          e.preventDefault();
+          goNextManual();
+        }
+      });
+
       window.addEventListener("message", (e) => {
         const data = e && e.data;
         if (!data || typeof data !== "object") return;
         if (data.type === "avantrax:ready" && (data.page === "index" || data.page === "mapa")) {
           ready[data.page] = true;
           postFilters(data.page);
+          if (isManualOpen()) updateManualUI();
         }
         if (data.type === "avantrax:data_updated") {
           postRefresh("mapa");
+        }
+        if (data.type === "avantrax:manual_switch_open") {
+          openManualNav();
         }
         if (data.type === "avantrax:filters" && data.filters && typeof data.filters === "object") {
           filters = {
@@ -114,9 +296,7 @@
       postFilters("index");
       postRefresh("index");
 
-      setInterval(() => {
-        trySwitch();
-      }, DURATION_MS);
+      scheduleSwitch(DURATION_MS);
     </script>
   </body>
 </html>

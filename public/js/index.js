@@ -939,6 +939,10 @@
                 window.addEventListener('keydown', (e) => {
                     const key = (e.key || '').toLowerCase();
                     if (e.ctrlKey && e.shiftKey && key === 'f') { e.preventDefault(); toggle(); }
+                    if (e.ctrlKey && e.shiftKey && key === 'p') {
+                        e.preventDefault();
+                        try { window.parent?.postMessage({ type: 'avantrax:manual_switch_open' }, '*'); } catch (_) {}
+                    }
                     if (e.ctrlKey && e.altKey) {
                         if (key === '-' || key === '_') { e.preventDefault(); ViewportScale.setTune({ scalePct: (ViewportScale.tune.scalePct ?? 100) - 2 }); if (panel.classList.contains('open')) open(); }
                         if (key === '=' || key === '+') { e.preventDefault(); ViewportScale.setTune({ scalePct: (ViewportScale.tune.scalePct ?? 100) + 2 }); if (panel.classList.contains('open')) open(); }
