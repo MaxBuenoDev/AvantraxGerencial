@@ -943,6 +943,10 @@
                         e.preventDefault();
                         try { window.parent?.postMessage({ type: 'avantrax:manual_switch_open' }, '*'); } catch (_) {}
                     }
+                    if (e.ctrlKey && e.shiftKey && key === 'g') {
+                        e.preventDefault();
+                        try { window.parent?.postMessage({ type: 'avantrax:manage_open' }, '*'); } catch (_) {}
+                    }
                     if (e.ctrlKey && e.altKey) {
                         if (key === '-' || key === '_') { e.preventDefault(); ViewportScale.setTune({ scalePct: (ViewportScale.tune.scalePct ?? 100) - 2 }); if (panel.classList.contains('open')) open(); }
                         if (key === '=' || key === '+') { e.preventDefault(); ViewportScale.setTune({ scalePct: (ViewportScale.tune.scalePct ?? 100) + 2 }); if (panel.classList.contains('open')) open(); }
@@ -1772,6 +1776,29 @@
         window.addEventListener('message', async (e) => {
             const data = e?.data;
             if (!data || typeof data !== 'object') return;
+            if (data.type === 'avantrax:pick_enable') {
+                try { FieldPicker.setEnabled(Boolean(data.enabled)); } catch (_) {}
+                return;
+            }
+            if (data.type === 'avantrax:dataset_request') {
+                try {
+                    const id = String(data.id || '');
+                    let dataset = null;
+                    if (id === 'inv_faturados') {
+                        dataset = FieldPicker.buildInventarioDataset('Status de Faturamento — Faturados', (r) => String(r?.STAT_FAT || '').trim().toUpperCase() === 'FATURADO');
+                    } else if (id === 'inv_nao_faturados') {
+                        dataset = FieldPicker.buildInventarioDataset('Status de Faturamento — Não Faturados', (r) => String(r?.STAT_FAT || '').trim().toUpperCase() === 'NAO FATURADO');
+                    } else if (id === 'inv_bloqueados') {
+                        dataset = FieldPicker.buildBloqueadosDataset();
+                    } else if (id === 'emb_hoje') {
+                        dataset = FieldPicker.buildEmbarcadosHojeDataset();
+                    }
+                    if (dataset) {
+                        window.parent?.postMessage({ type: 'avantrax:dataset_selected', dataset }, '*');
+                    }
+                } catch (_) {}
+                return;
+            }
             if (data.type === 'avantrax:refresh') {
                 try { await DashboardRender.tryLoadFromSupabase(); } catch (_) {}
             }
@@ -1779,4 +1806,649 @@
                 DashboardRender.startCountdown(data.durationMs);
             }
         });
+
+        const FieldPicker = {
+            enabled: false,
+            hoverEl: null,
+            hoverAction: null,
+            hl: null,
+            badge: null,
+
+            setEnabled(enabled) {
+                const next = Boolean(enabled);
+                if (next === this.enabled) return;
+                this.enabled = next;
+                if (this.enabled) this.enable();
+                else this.disable();
+            },
+
+            enable() {
+                this.ensureUI();
+                document.documentElement.style.cursor = 'crosshair';
+                window.addEventListener('mousemove', this._onMove, true);
+                window.addEventListener('click', this._onClick, true);
+                window.addEventListener('keydown', this._onKey, true);
+                this.updateBadge(true);
+            },
+
+            disable() {
+                document.documentElement.style.cursor = '';
+                window.removeEventListener('mousemove', this._onMove, true);
+                window.removeEventListener('click', this._onClick, true);
+                window.removeEventListener('keydown', this._onKey, true);
+                this.hoverEl = null;
+                this.updateHL(null);
+                this.updateBadge(false);
+            },
+
+            ensureUI() {
+                if (!this.hl) {
+                    const hl = document.createElement('div');
+                    hl.id = 'avantrax-fieldpicker-hl';
+                    hl.style.cssText = [
+                        'position:fixed',
+                        'left:0',
+                        'top:0',
+                        'width:0',
+                        'height:0',
+                        'pointer-events:none',
+                        'z-index:2147483646',
+                        'border:2px solid rgba(0,229,255,.95)',
+                        'border-radius:10px',
+                        'box-shadow:0 0 20px rgba(0,229,255,.22)',
+                        'background:rgba(0,229,255,.06)',
+                        'opacity:0',
+                        'transition:opacity .08s ease',
+                    ].join(';');
+                    document.body.appendChild(hl);
+                    this.hl = hl;
+                }
+                if (!this.badge) {
+                    const b = document.createElement('div');
+                    b.id = 'avantrax-fieldpicker-badge';
+                    b.style.cssText = [
+                        'position:fixed',
+                        'left:16px',
+                        'bottom:16px',
+                        'z-index:2147483646',
+                        'pointer-events:none',
+                        'padding:8px 10px',
+                        'border-radius:999px',
+                        'border:1px solid rgba(0,229,255,.35)',
+                        'background:rgba(15,23,42,.88)',
+                        'color:rgba(224,242,254,.95)',
+                        'font:800 12px ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial',
+                        'letter-spacing:.2px',
+                        'box-shadow:0 12px 45px rgba(0,0,0,.45)',
+                        'backdrop-filter:blur(10px)',
+                        'opacity:0',
+                        'transform:translateY(6px)',
+                        'transition:opacity .12s ease, transform .12s ease',
+                    ].join(';');
+                    b.textContent = 'Gerência: seleção ativa (clique em um campo • Esc desativa)';
+                    document.body.appendChild(b);
+                    this.badge = b;
+                }
+
+                // bind once
+                if (!this._bound) {
+                    this._bound = true;
+                    this._onMove = (e) => this.onMove(e);
+                    this._onClick = (e) => this.onClick(e);
+                    this._onKey = (e) => this.onKey(e);
+                }
+            },
+
+            updateBadge(on) {
+                if (!this.badge) return;
+                this.badge.style.opacity = on ? '1' : '0';
+                this.badge.style.transform = on ? 'translateY(0)' : 'translateY(6px)';
+            },
+
+            onKey(e) {
+                if (!this.enabled) return;
+                const key = String(e.key || '').toLowerCase();
+                if (key === 'escape') {
+                    e.preventDefault();
+                    this.setEnabled(false);
+                }
+            },
+
+            onMove(e) {
+                if (!this.enabled) return;
+                const el = document.elementFromPoint(e.clientX, e.clientY);
+                const action = this.pickExportAction(el);
+                this.hoverAction = action;
+                this.hoverEl = action?.el || null;
+                this.updateHL(this.hoverEl);
+            },
+
+            onClick(e) {
+                if (!this.enabled) return;
+                e.preventDefault();
+                e.stopPropagation();
+                const action = this.hoverAction || this.pickExportAction(document.elementFromPoint(e.clientX, e.clientY));
+                if (!action) return;
+
+                if (action.type === 'fat_menu') {
+                    const inv = DataService.getFiltered('inventario') || [];
+                    const fatCount = inv.filter(r => String(r?.STAT_FAT || '').trim().toUpperCase() === 'FATURADO').length;
+                    const nfatCount = inv.filter(r => String(r?.STAT_FAT || '').trim().toUpperCase() === 'NAO FATURADO').length;
+                    const menu = {
+                        id: 'fat_status',
+                        title: 'Status de Faturamento',
+                        page: 'index',
+                        options: [
+                            { id: 'inv_faturados', label: 'Faturados', count: fatCount },
+                            { id: 'inv_nao_faturados', label: 'Não Faturados', count: nfatCount },
+                        ],
+                        timestamp: new Date().toISOString(),
+                    };
+                    try { window.parent?.postMessage({ type: 'avantrax:export_menu', menu }, '*'); } catch (_) {}
+                    return;
+                }
+                if (action.type === 'bloq_menu') {
+                    const inv = DataService.getFiltered('inventario') || [];
+                    const bloqueadosCount = inv.filter(r => String(r?.['MOTIVO BLOQUEIO'] || '').trim() !== '').length;
+                    const menu = {
+                        id: 'bloq_status',
+                        title: 'Ve�culos Bloqueados',
+                        page: 'index',
+                        options: [
+                            { id: 'inv_bloqueados', label: 'Lista de Bloqueados', count: bloqueadosCount },
+                        ],
+                        timestamp: new Date().toISOString(),
+                    };
+                    try { window.parent?.postMessage({ type: 'avantrax:export_menu', menu }, '*'); } catch (_) {}
+                    return;
+                }
+            },
+
+            pickExportAction(el) {
+                try {
+                    if (!el) return null;
+
+                    // Only exportable region (card inteiro): Status de Faturamento
+                    const card = el.closest?.('.card');
+                    if (card && (card.querySelector?.('#chart-stat-fat') || card.querySelector?.('#fat-num-fat') || card.querySelector?.('#fat-num-nfat'))) {
+                        return { type: 'fat_menu', el: card };
+                    }
+                    if (card && (card.querySelector?.('#bloq-grid') || card.querySelector?.('#bloq-badge') || /veiculos bloqueados/i.test(String(card.textContent || '')))) {
+                        return { type: 'bloq_menu', el: card };
+                    }
+
+                    return null;
+                } catch (_) {
+                    return null;
+                }
+            },
+
+            buildInventarioDataset(title, predicate) {
+                const rows = DataService.getFiltered('inventario') || [];
+                const filtered = rows.filter((r) => {
+                    try { return predicate(r); } catch (_) { return false; }
+                });
+
+                const keys = this.getInventarioKeys(rows);
+                const columns = this.makeInventarioColumns(keys);
+                const outRows = filtered.map((r) => this.mapInventarioRow(r, keys));
+
+                return {
+                    title,
+                    page: 'index',
+                    dataset: 'inventario',
+                    count: outRows.length,
+                    columns,
+                    rows: outRows,
+                    timestamp: new Date().toISOString(),
+                };
+            },
+
+
+            buildBloqueadosDataset() {
+                const rows = DataService.getFiltered('inventario') || [];
+                const keys = this.getInventarioKeys(rows);
+
+                const readByHeader = (row, candidates) => {
+                    try {
+                        const rkeys = Object.keys(row || {});
+                        const targets = (candidates || []).map((c) => DataService.normalizeHeader(c));
+                        for (const rk of rkeys) {
+                            const nrk = DataService.normalizeHeader(rk);
+                            if (targets.includes(nrk)) return row?.[rk];
+                        }
+                        return '';
+                    } catch (_) {
+                        return '';
+                    }
+                };
+
+                const readMotivo = (row) => {
+                    const explicit = readByHeader(row, ['MOTIVO BLOQUEIO', 'MOTIVO_BLOQUEIO', 'BLOQUEIO', 'MOTIVO']);
+                    const mapped = keys?.motivo ? row?.[keys.motivo] : '';
+                    return String(explicit ?? mapped ?? '').trim();
+                };
+
+                const filtered = rows.filter((r) => readMotivo(r) !== '');
+                const outRows = filtered.map((r) => {
+                    const mapped = this.mapInventarioRow(r, keys);
+                    mapped.motivo = readMotivo(r);
+                    return mapped;
+                });
+
+                const columns = [
+                    { key: 'proprietario', label: 'Propriet�rio' },
+                    { key: 'statFat', label: 'Status faturamento' },
+                    { key: 'chassi', label: 'Chassi' },
+                    { key: 'modelo', label: 'Modelo' },
+                    { key: 'area', label: 'AR' },
+                    { key: 'endereco', label: 'Endere�o' },
+                    { key: 'motivo', label: 'Motivo bloqueio' },
+                    { key: 'tpVenda', label: 'TP Venda' },
+                ];
+
+                return {
+                    title: 'Ve�culos Bloqueados',
+                    page: 'index',
+                    dataset: 'inventario',
+                    count: outRows.length,
+                    columns,
+                    rows: outRows,
+                    timestamp: new Date().toISOString(),
+                };
+            },
+            getInventarioKeys(rows) {
+                // Build a more reliable header reference:
+                // some first rows can have empty cells and miss keys like NF.
+                const sampleForHeaders = (rows || []).slice(0, 300);
+                const headerKeysRef = sampleForHeaders.reduce((best, r) => {
+                    const ks = Object.keys(r || {});
+                    return ks.length > best.length ? ks : best;
+                }, Object.keys(rows?.[0] ?? {}));
+
+                const find = (cands, heur = []) => {
+                    if (!headerKeysRef.length) return null;
+                    const norm = (v) => DataService.normalizeHeader(v);
+                    const simplify = (s) => String(s).replace(/[^A-Z0-9]/g, '');
+                    const keysNorm = headerKeysRef.map(k => ({ raw: k, norm: norm(k), simp: simplify(norm(k)) }));
+                    const candsNorm = (cands || []).map(c => norm(c));
+
+                    for (const c of candsNorm) {
+                        const hit = keysNorm.find(k => k.norm === c);
+                        if (hit) return hit.raw;
+                    }
+                    for (const c of candsNorm.map(simplify)) {
+                        const hit = keysNorm.find(k => k.simp === c);
+                        if (hit) return hit.raw;
+                    }
+
+                    const hits = [];
+                    for (const h of heur || []) {
+                        const hs = simplify(norm(h));
+                        keysNorm.forEach(k => { if (k.simp.includes(hs)) hits.push(k.raw); });
+                    }
+                    const unique = Array.from(new Set(hits));
+                    return unique.length === 1 ? unique[0] : null;
+                };
+                const keyAtIndex = (idx) => {
+                    try {
+                        const keys = headerKeysRef;
+                        return keys && keys.length > idx ? keys[idx] : null;
+                    } catch (_) {
+                        return null;
+                    }
+                };
+
+                const looksLikeStatusFat = (v) => {
+                    const s = String(v ?? '').trim().toUpperCase();
+                    return s === 'FATURADO' || s === 'NAO FATURADO' || s === 'NÃO FATURADO';
+                };
+                const looksLikeNF = (v) => {
+                    if (v === undefined || v === null) return false;
+                    const s = String(v).trim();
+                    if (!s) return false;
+                    if (/^\d{4,}$/.test(s)) return true;
+                    // Avoid patio address pattern like 401-037 (this is ENDERECO, not NF)
+                    if (/^\d{3}-\d{3}$/.test(s)) return false;
+                    if (/^\d{2,}[-/]\d{2,}$/.test(s)) return true;
+                    if (/^\d{4,}\.\d+$/.test(s)) return true;
+                    return false;
+                };
+                const scoreKeyAsNF = (key, statFatKey, sample, blockedKeys = []) => {
+                    if (!key || key === statFatKey) return -1;
+                    if (blockedKeys.includes(key)) return -1;
+                    let nfHits = 0, statusHits = 0, nonEmpty = 0;
+                    for (const r of sample) {
+                        const v = r?.[key];
+                        if (v === undefined || v === null || String(v).trim() === '') continue;
+                        nonEmpty++;
+                        if (looksLikeStatusFat(v)) statusHits++;
+                        if (looksLikeNF(v)) nfHits++;
+                    }
+                    if (nonEmpty < 10) return -1;
+                    const nfRatio = nfHits / nonEmpty;
+                    const stRatio = statusHits / nonEmpty;
+                    return (nfRatio * 1.2) - (stRatio * 2.0);
+                };
+                const detectNFKey = (preferredKey, statFatKey, blockedKeys = []) => {
+                    try {
+                        const keys = Object.keys(rows?.[0] ?? {});
+                        if (!keys.length) return null;
+                        const sample = (rows || []).slice(0, 800);
+
+                        if (preferredKey) {
+                            const sc = scoreKeyAsNF(preferredKey, statFatKey, sample, blockedKeys);
+                            if (sc > 0.15) return preferredKey;
+                        }
+
+                        const kD = keyAtIndex(3);
+                        if (kD) {
+                            const sc = scoreKeyAsNF(kD, statFatKey, sample, blockedKeys);
+                            if (sc > 0.15) return kD;
+                        }
+
+                        let best = null, bestScore = 0.15;
+                        for (const k of keys) {
+                            const sc = scoreKeyAsNF(k, statFatKey, sample, blockedKeys);
+                            if (sc > bestScore) { best = k; bestScore = sc; }
+                        }
+                        return best;
+                    } catch (_) {
+                        return null;
+                    }
+                };
+
+                const statFatKey = find(['STAT_FAT', 'STATUS FATURAMENTO', 'STATUS_FATURAMENTO', 'STATUS FAT'], ['STAT', 'FATUR']);
+                const preferredNFKey = find(['NF', 'NOTA', 'NOTA FISCAL', 'NOTA_FISCAL', 'NFE', 'NF-E', 'NUMERO NF', 'NUM NF', 'NUMERO NOTA', 'NUM NOTA'], ['NOTA', 'NF', 'NFE']);
+                const headerKeys = headerKeysRef;
+                const keyByHeader = (target) => headerKeys.find(k => DataService.normalizeHeader(k) === target) || null;
+                const nfIdxKey = keyAtIndex(16);
+                const arIdxKey = keyAtIndex(10);
+                const endIdxKey = keyAtIndex(11);
+                const arKey = keyByHeader('AR') || find(['AR', 'AREA', 'ÁREA', 'AREA (AR)', 'AREA_AR'], ['AR', 'AREA']);
+                const endKey = keyByHeader('ENDERECO') || find(['ENDERECO', 'ENDEREÇO', 'END', 'ENDERECAMENTO'], ['ENDEREC']);
+                const blockedNFKeys = [arKey, endKey].filter(Boolean);
+                const nfKey =
+                    keyByHeader('NF') ||
+                    (DataService.normalizeHeader(nfIdxKey) === 'NF' ? nfIdxKey : null) ||
+                    detectNFKey(preferredNFKey, statFatKey, blockedNFKeys) ||
+                    nfIdxKey ||
+                    preferredNFKey ||
+                    null;
+                const motivoKey = find(['MOTIVO BLOQUEIO', 'MOTIVO_BLOQUEIO', 'BLOQUEIO', 'MOTIVO'], ['BLOQUEIO', 'MOTIVO']);
+                const safeMotivoKey = (motivoKey && motivoKey !== endKey && motivoKey !== arKey) ? motivoKey : null;
+                const detectMotivoKey = () => {
+                    try {
+                        const keys = headerKeysRef;
+                        const sample = (rows || []).slice(0, 800);
+                        let best = null, bestScore = 0.2;
+                        for (const k of keys) {
+                            if (!k || k === endKey || k === arKey || k === statFatKey || k === nfKey) continue;
+                            let nonEmpty = 0, motivoHits = 0, addrHits = 0;
+                            for (const r of sample) {
+                                const v = String(r?.[k] ?? '').trim();
+                                if (!v) continue;
+                                nonEmpty++;
+                                if (/^\d{3}-\d{3}$/.test(v)) addrHits++;
+                                if (/(BLOQ|BLOQUE|CANCEL|FABRIC|GEREN|RESTRI|PENDEN)/i.test(v)) motivoHits++;
+                            }
+                            if (nonEmpty < 6) continue;
+                            const score = (motivoHits / nonEmpty) - ((addrHits / nonEmpty) * 2.0);
+                            if (score > bestScore) { best = k; bestScore = score; }
+                        }
+                        return best;
+                    } catch (_) {
+                        return null;
+                    }
+                };
+                const resolvedMotivoKey = safeMotivoKey || detectMotivoKey();
+                return {
+                    chassi: find(['CHASSI', 'VIN', 'CHASSI/VIN', 'CHASSIS', 'CHASSI_VIN'], ['CHASSI', 'VIN']),
+                    modelo: find(['MODELO', 'MODELO/ANO', 'MODELO ANO', 'MODELO_DESC', 'DESCRICAO MODELO'], ['MODELO']),
+                    // NF fica na coluna D (index 3) do inventário de pátio — usar header se existir, senão fallback pela posição
+                    nota: ((nfKey && nfKey !== endKey && nfKey !== arKey) ? nfKey : (nfIdxKey || null)),
+                    statFat: statFatKey,
+                    aging: find(['AGING_PATIO', 'AGING PATIO', 'AGING'], ['AGING']),
+                    motivo: resolvedMotivoKey,
+                    transp: find(['NOME TRANSPORTADORA', 'TRANSPORTADORA', 'TRANSP', 'TRANS'], ['TRANSP']),
+                    montadora: (DataService.columnMap?.inventario?.montadora) || find(['MONTADORA'], ['MONTADOR']),
+                    proprietario: (DataService.columnMap?.inventario?.proprietario) || find(['PROPRIETARIO', 'CLIENTE'], ['CLIENTE']),
+                    tpVenda: find(['TP_VENDA', 'TP VENDA', 'TPVENDA'], ['TP', 'VENDA']) || keyAtIndex(26),
+                    // Área (coluna P / AR) e Endereço (coluna Q)
+                    area: arKey || find(['AREA', 'ÁREA', 'AR', 'AREA (AR)', 'AREA_AR'], ['AREA', 'AR']) || arIdxKey || keyAtIndex(15),
+                    endereco: endKey || find(['ENDERECO', 'ENDEREÇO', 'END', 'ENDERECAMENTO'], ['ENDEREC']) || endIdxKey,
+                };
+            },
+
+            makeInventarioColumns(keys) {
+                const cols = [];
+                const push = (key, label) => { if (keys[key]) cols.push({ key, label }); };
+                // Always show a concise, useful set
+                push('chassi', 'Chassi');
+                push('modelo', 'Modelo');
+                push('statFat', 'Status faturamento');
+                push('aging', 'Aging pátio');
+                push('motivo', 'Motivo bloqueio');
+                push('transp', 'Transportadora');
+                push('montadora', 'Montadora');
+                push('proprietario', 'Proprietário');
+                push('area', 'Área');
+                push('endereco', 'Endereço');
+                // Keep NF at the end (next to Endereco in the modal table)
+                cols.push({ key: 'nota', label: 'NF' });
+
+                // fallback if nothing detected
+                if (!cols.length) {
+                    cols.push({ key: 'raw', label: 'Valor' });
+                }
+                return cols;
+            },
+
+            mapInventarioRow(r, keys) {
+                const o = {};
+                Object.keys(keys).forEach((k) => {
+                    const rawKey = keys[k];
+                    if (!rawKey) return;
+                    const v = r?.[rawKey];
+                    o[k] = v === undefined || v === null ? '' : String(v).trim();
+                });
+                if (!Object.keys(o).length) {
+                    o.raw = String(r?.CHASSI || r?.MODELO || r?.STAT_FAT || '').trim();
+                }
+                return o;
+            },
+
+            buildEmbarcadosHojeDataset() {
+                const rows = DataService.getFiltered('embarcados') || [];
+                const keys = this.getEmbarcadosKeys(rows);
+                const dateKey = keys.dataExp;
+                const excelToDate = (v) => {
+                    if (v === undefined || v === null || v === '') return null;
+                    if (typeof v === 'number') return new Date(Date.UTC(1899, 11, 30) + v * 86400000);
+                    const s = String(v).trim();
+                    const brMatch = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+                    if (brMatch) return new Date(Number(brMatch[3]), Number(brMatch[2]) - 1, Number(brMatch[1]));
+                    const d = new Date(s);
+                    return isNaN(d.getTime()) ? null : d;
+                };
+
+                const hoje = new Date();
+                const diaH = hoje.getDate(), mesH = hoje.getMonth(), anoH = hoje.getFullYear();
+
+                const filtered = rows.filter((e) => {
+                    if (!dateKey) return false;
+                    const raw = e?.[dateKey];
+                    const d = excelToDate(raw);
+                    if (!d) return false;
+                    const useUTC = typeof raw === 'number';
+                    const dia = useUTC ? d.getUTCDate() : d.getDate();
+                    const mes = useUTC ? d.getUTCMonth() : d.getMonth();
+                    const ano = useUTC ? d.getUTCFullYear() : d.getFullYear();
+                    return dia === diaH && mes === mesH && ano === anoH;
+                });
+
+                const columns = this.makeEmbarcadosColumns(keys);
+                const outRows = filtered.map((r) => this.mapEmbarcadosRow(r, keys));
+
+                return {
+                    title: 'Embarcados — Hoje',
+                    page: 'index',
+                    dataset: 'embarcados',
+                    count: outRows.length,
+                    columns,
+                    rows: outRows,
+                    timestamp: new Date().toISOString(),
+                };
+            },
+
+            getEmbarcadosKeys(rows) {
+                const find = (cands, heur = []) => DataService.findBestKey(rows, cands, heur);
+                return {
+                    chassi: find(['CHASSI', 'VIN', 'CHASSI/VIN', 'CHASSIS'], ['CHASSI', 'VIN']),
+                    modelo: find(['MODELO', 'DESCRICAO MODELO', 'MODELO_DESC'], ['MODELO']),
+                    nota: find(['NF', 'NOTA', 'NOTA FISCAL', 'NFE', 'NF-E'], ['NOTA', 'NF', 'NFE']),
+                    transp: find(['TRANSPORTADORA', 'NOME TRANSPORTADORA', 'TRANSP'], ['TRANSP']),
+                    dataExp: find(['DATA EXPEDIÇÃO', 'DATA EXPEDICAO', 'DT_EXPEDICAO', 'DT EXPEDICAO', 'DATA_EXPEDICAO', 'DT EXPEDIÇÃO', 'DT_EXPEDIÇÃO'], ['EXPED']),
+                    destino: find(['DESTINO', 'CIDADE DESTINO', 'UF DESTINO', 'LOCAL DESTINO'], ['DESTIN']),
+                    montadora: (DataService.columnMap?.embarcados?.montadora) || find(['MONTADORA'], ['MONTADOR']),
+                    proprietario: (DataService.columnMap?.embarcados?.proprietario) || find(['PROPRIETARIO', 'CLIENTE'], ['CLIENTE']),
+                };
+            },
+
+            makeEmbarcadosColumns(keys) {
+                const cols = [];
+                const push = (key, label) => { if (keys[key]) cols.push({ key, label }); };
+                push('chassi', 'Chassi');
+                push('modelo', 'Modelo');
+                push('nota', 'Nota');
+                push('transp', 'Transportadora');
+                push('dataExp', 'Data expedição');
+                push('destino', 'Destino');
+                push('montadora', 'Montadora');
+                push('proprietario', 'Proprietário');
+                if (!cols.length) cols.push({ key: 'raw', label: 'Valor' });
+                return cols;
+            },
+
+            mapEmbarcadosRow(r, keys) {
+                const o = {};
+                Object.keys(keys).forEach((k) => {
+                    const rawKey = keys[k];
+                    if (!rawKey) return;
+                    const v = r?.[rawKey];
+                    o[k] = v === undefined || v === null ? '' : String(v).trim();
+                });
+                if (!Object.keys(o).length) o.raw = String(r?.CHASSI || r?.MODELO || '').trim();
+                return o;
+            },
+
+            pickCandidate(el) {
+                let cur = el;
+                const avoid = new Set(['avantrax-fieldpicker-hl', 'avantrax-fieldpicker-badge']);
+                while (cur && cur !== document.body && cur !== document.documentElement) {
+                    if (cur.id && avoid.has(cur.id)) return null;
+                    const rect = cur.getBoundingClientRect ? cur.getBoundingClientRect() : null;
+                    const area = rect ? rect.width * rect.height : 0;
+                    const txt = String(cur.textContent || '').trim();
+                    const hasValueProp = Object.prototype.hasOwnProperty.call(cur, 'value');
+                    const isTooBig = rect ? area > (window.innerWidth * window.innerHeight * 0.45) : false;
+
+                    if (cur.id && !isTooBig) return cur;
+                    if ((txt || hasValueProp) && !isTooBig) return cur;
+
+                    cur = cur.parentElement;
+                }
+                return el || null;
+            },
+
+            extractField(el) {
+                const tag = String(el.tagName || '').toLowerCase();
+                const id = String(el.id || '');
+                const title = String(el.getAttribute?.('title') || '');
+                const ariaLabel = String(el.getAttribute?.('aria-label') || '');
+                const selector = id ? `#${this.cssEscape(id)}` : this.buildSelector(el);
+                const label = this.guessLabel(el) || ariaLabel || title || id || tag;
+                const value = this.readValue(el);
+                const text = String(el.textContent || '').trim();
+
+                return {
+                    page: 'index',
+                    id,
+                    tag,
+                    label,
+                    value,
+                    text,
+                    title,
+                    ariaLabel,
+                    selector,
+                    timestamp: new Date().toISOString(),
+                };
+            },
+
+            readValue(el) {
+                try {
+                    if (!el) return '';
+                    const tag = String(el.tagName || '').toLowerCase();
+                    if (tag === 'input' || tag === 'select' || tag === 'textarea') return String(el.value ?? '');
+                    return String(el.textContent || '').trim();
+                } catch (_) {
+                    return '';
+                }
+            },
+
+            guessLabel(el) {
+                try {
+                    if (!el) return '';
+                    // KPI card pattern
+                    const kpiCard = el.closest?.('.kpi-card');
+                    if (kpiCard) {
+                        const lbl = kpiCard.querySelector?.('.kpi-label');
+                        const t = String(lbl?.textContent || '').trim();
+                        if (t) return t;
+                    }
+                    if (el.id) {
+                        const lab = document.querySelector?.(`label[for="${CSS.escape(el.id)}"]`);
+                        const t = String(lab?.textContent || '').trim();
+                        if (t) return t;
+                    }
+                    return '';
+                } catch (_) {
+                    return '';
+                }
+            },
+
+            buildSelector(el) {
+                try {
+                    const tag = String(el.tagName || '').toLowerCase();
+                    const classes = el.classList ? Array.from(el.classList).slice(0, 2) : [];
+                    const cls = classes.length ? '.' + classes.map((c) => this.cssEscape(c)).join('.') : '';
+                    return tag + cls;
+                } catch (_) {
+                    return '';
+                }
+            },
+
+            cssEscape(s) {
+                try {
+                    return (window.CSS && CSS.escape) ? CSS.escape(String(s)) : String(s).replace(/[^a-zA-Z0-9_-]/g, '\\$&');
+                } catch (_) {
+                    return String(s || '');
+                }
+            },
+
+            updateHL(el) {
+                if (!this.hl) return;
+                if (!el || !el.getBoundingClientRect) {
+                    this.hl.style.opacity = '0';
+                    return;
+                }
+                const r = el.getBoundingClientRect();
+                const pad = 3;
+                this.hl.style.left = Math.max(0, r.left - pad) + 'px';
+                this.hl.style.top = Math.max(0, r.top - pad) + 'px';
+                this.hl.style.width = Math.max(0, r.width + pad * 2) + 'px';
+                this.hl.style.height = Math.max(0, r.height + pad * 2) + 'px';
+                this.hl.style.opacity = '1';
+            },
+        };
     

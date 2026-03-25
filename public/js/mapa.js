@@ -337,6 +337,10 @@ const FiltersUI = {
                 e.preventDefault();
                 try { window.parent?.postMessage({ type: 'avantrax:manual_switch_open' }, '*'); } catch (_) {}
             }
+            if (e.ctrlKey && e.shiftKey && key === 'g') {
+                e.preventDefault();
+                try { window.parent?.postMessage({ type: 'avantrax:manage_open' }, '*'); } catch (_) {}
+            }
             if (!panel.classList.contains('open')) return;
             if (key === '-' || key === '_') { e.preventDefault(); ViewportScale.setTune({ scalePct: (ViewportScale.tune.scalePct ?? 100) - 2 }); open(); }
             if (key === '=' || key === '+') { e.preventDefault(); ViewportScale.setTune({ scalePct: (ViewportScale.tune.scalePct ?? 100) + 2 }); open(); }
@@ -1192,6 +1196,10 @@ window.addEventListener('message', async (e) => {
     if (!TV_MODE) return;
     const data = e?.data;
     if (!data || typeof data !== 'object') return;
+    if (data.type === 'avantrax:pick_enable') {
+        try { FieldPicker.setEnabled(Boolean(data.enabled)); } catch (_) {}
+        return;
+    }
     if (data.type === 'avantrax:refresh') {
         try { await tryLoadFromSupabase(); } catch (_) {}
         return;
@@ -1208,3 +1216,229 @@ window.addEventListener('message', async (e) => {
         if (lastInventarioRows) renderDashboard(lastInventarioRows);
     }
 });
+
+const FieldPicker = {
+    enabled: false,
+    hoverEl: null,
+    hl: null,
+    badge: null,
+
+    setEnabled(enabled) {
+        const next = Boolean(enabled);
+        if (next === this.enabled) return;
+        this.enabled = next;
+        if (this.enabled) this.enable();
+        else this.disable();
+    },
+
+    enable() {
+        this.ensureUI();
+        document.documentElement.style.cursor = 'crosshair';
+        window.addEventListener('mousemove', this._onMove, true);
+        window.addEventListener('click', this._onClick, true);
+        window.addEventListener('keydown', this._onKey, true);
+        this.updateBadge(true);
+    },
+
+    disable() {
+        document.documentElement.style.cursor = '';
+        window.removeEventListener('mousemove', this._onMove, true);
+        window.removeEventListener('click', this._onClick, true);
+        window.removeEventListener('keydown', this._onKey, true);
+        this.hoverEl = null;
+        this.updateHL(null);
+        this.updateBadge(false);
+    },
+
+    ensureUI() {
+        if (!this.hl) {
+            const hl = document.createElement('div');
+            hl.id = 'avantrax-fieldpicker-hl';
+            hl.style.cssText = [
+                'position:fixed',
+                'left:0',
+                'top:0',
+                'width:0',
+                'height:0',
+                'pointer-events:none',
+                'z-index:2147483646',
+                'border:2px solid rgba(0,229,255,.95)',
+                'border-radius:10px',
+                'box-shadow:0 0 20px rgba(0,229,255,.22)',
+                'background:rgba(0,229,255,.06)',
+                'opacity:0',
+                'transition:opacity .08s ease',
+            ].join(';');
+            document.body.appendChild(hl);
+            this.hl = hl;
+        }
+        if (!this.badge) {
+            const b = document.createElement('div');
+            b.id = 'avantrax-fieldpicker-badge';
+            b.style.cssText = [
+                'position:fixed',
+                'left:16px',
+                'bottom:16px',
+                'z-index:2147483646',
+                'pointer-events:none',
+                'padding:8px 10px',
+                'border-radius:999px',
+                'border:1px solid rgba(0,229,255,.35)',
+                'background:rgba(15,23,42,.88)',
+                'color:rgba(224,242,254,.95)',
+                'font:800 12px ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial',
+                'letter-spacing:.2px',
+                'box-shadow:0 12px 45px rgba(0,0,0,.45)',
+                'backdrop-filter:blur(10px)',
+                'opacity:0',
+                'transform:translateY(6px)',
+                'transition:opacity .12s ease, transform .12s ease',
+            ].join(';');
+            b.textContent = 'Gerência: seleção ativa (clique em um campo • Esc desativa)';
+            document.body.appendChild(b);
+            this.badge = b;
+        }
+
+        if (!this._bound) {
+            this._bound = true;
+            this._onMove = (e) => this.onMove(e);
+            this._onClick = (e) => this.onClick(e);
+            this._onKey = (e) => this.onKey(e);
+        }
+    },
+
+    updateBadge(on) {
+        if (!this.badge) return;
+        this.badge.style.opacity = on ? '1' : '0';
+        this.badge.style.transform = on ? 'translateY(0)' : 'translateY(6px)';
+    },
+
+    onKey(e) {
+        if (!this.enabled) return;
+        const key = String(e.key || '').toLowerCase();
+        if (key === 'escape') {
+            e.preventDefault();
+            this.setEnabled(false);
+        }
+    },
+
+    onMove(e) {
+        if (!this.enabled) return;
+        const el = document.elementFromPoint(e.clientX, e.clientY);
+        const picked = this.pickCandidate(el);
+        this.hoverEl = picked;
+        this.updateHL(picked);
+    },
+
+    onClick(e) {
+        if (!this.enabled) return;
+        e.preventDefault();
+        e.stopPropagation();
+        const el = this.hoverEl || this.pickCandidate(document.elementFromPoint(e.clientX, e.clientY));
+        if (!el) return;
+        const field = this.extractField(el);
+        try { window.parent?.postMessage({ type: 'avantrax:field_selected', field }, '*'); } catch (_) {}
+    },
+
+    pickCandidate(el) {
+        let cur = el;
+        const avoid = new Set(['avantrax-fieldpicker-hl', 'avantrax-fieldpicker-badge']);
+        while (cur && cur !== document.body && cur !== document.documentElement) {
+            if (cur.id && avoid.has(cur.id)) return null;
+            const rect = cur.getBoundingClientRect ? cur.getBoundingClientRect() : null;
+            const area = rect ? rect.width * rect.height : 0;
+            const txt = String(cur.textContent || '').trim();
+            const hasValueProp = Object.prototype.hasOwnProperty.call(cur, 'value');
+            const isTooBig = rect ? area > (window.innerWidth * window.innerHeight * 0.45) : false;
+
+            if (cur.id && !isTooBig) return cur;
+            if ((txt || hasValueProp) && !isTooBig) return cur;
+
+            cur = cur.parentElement;
+        }
+        return el || null;
+    },
+
+    extractField(el) {
+        const tag = String(el.tagName || '').toLowerCase();
+        const id = String(el.id || '');
+        const title = String(el.getAttribute?.('title') || '');
+        const ariaLabel = String(el.getAttribute?.('aria-label') || '');
+        const selector = id ? `#${this.cssEscape(id)}` : this.buildSelector(el);
+        const label = this.guessLabel(el) || ariaLabel || title || id || tag;
+        const value = this.readValue(el);
+        const text = String(el.textContent || '').trim();
+
+        return {
+            page: 'mapa',
+            id,
+            tag,
+            label,
+            value,
+            text,
+            title,
+            ariaLabel,
+            selector,
+            timestamp: new Date().toISOString(),
+        };
+    },
+
+    readValue(el) {
+        try {
+            if (!el) return '';
+            const tag = String(el.tagName || '').toLowerCase();
+            if (tag === 'input' || tag === 'select' || tag === 'textarea') return String(el.value ?? '');
+            return String(el.textContent || '').trim();
+        } catch (_) {
+            return '';
+        }
+    },
+
+    guessLabel(el) {
+        try {
+            if (!el) return '';
+            if (el.id) {
+                const lab = document.querySelector?.(`label[for="${CSS.escape(el.id)}"]`);
+                const t = String(lab?.textContent || '').trim();
+                if (t) return t;
+            }
+            return '';
+        } catch (_) {
+            return '';
+        }
+    },
+
+    buildSelector(el) {
+        try {
+            const tag = String(el.tagName || '').toLowerCase();
+            const classes = el.classList ? Array.from(el.classList).slice(0, 2) : [];
+            const cls = classes.length ? '.' + classes.map((c) => this.cssEscape(c)).join('.') : '';
+            return tag + cls;
+        } catch (_) {
+            return '';
+        }
+    },
+
+    cssEscape(s) {
+        try {
+            return (window.CSS && CSS.escape) ? CSS.escape(String(s)) : String(s).replace(/[^a-zA-Z0-9_-]/g, '\\$&');
+        } catch (_) {
+            return String(s || '');
+        }
+    },
+
+    updateHL(el) {
+        if (!this.hl) return;
+        if (!el || !el.getBoundingClientRect) {
+            this.hl.style.opacity = '0';
+            return;
+        }
+        const r = el.getBoundingClientRect();
+        const pad = 3;
+        this.hl.style.left = Math.max(0, r.left - pad) + 'px';
+        this.hl.style.top = Math.max(0, r.top - pad) + 'px';
+        this.hl.style.width = Math.max(0, r.width + pad * 2) + 'px';
+        this.hl.style.height = Math.max(0, r.height + pad * 2) + 'px';
+        this.hl.style.opacity = '1';
+    },
+};

@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>AVANTRAX | TV</title>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <style>
       html,
       body {
@@ -109,6 +110,339 @@
         opacity: 0.55;
         cursor: not-allowed;
       }
+
+      /* Management panel + details modal */
+      #mg-panel {
+        position: fixed;
+        top: 16px;
+        right: 16px;
+        width: min(420px, calc(100vw - 32px));
+        display: none;
+        z-index: 10000;
+        background: rgba(15, 23, 42, 0.92);
+        border: 1px solid rgba(148, 163, 184, 0.22);
+        border-radius: 14px;
+        box-shadow: 0 18px 65px rgba(0, 0, 0, 0.6);
+        padding: 14px 14px 12px;
+        color: rgba(226, 232, 240, 0.95);
+        font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans",
+          "Liberation Sans", sans-serif;
+        backdrop-filter: blur(10px);
+      }
+      #mg-panel.open {
+        display: block;
+      }
+      #mg-panel .top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 10px;
+      }
+      #mg-panel .title {
+        font-size: 14px;
+        letter-spacing: 0.4px;
+        text-transform: uppercase;
+        font-weight: 800;
+        color: rgba(226, 232, 240, 0.9);
+      }
+      #mg-panel .sub {
+        font-size: 11px;
+        color: rgba(148, 163, 184, 0.95);
+        line-height: 1.25;
+      }
+      #mg-panel .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        background: rgba(255, 255, 255, 0.04);
+        font-size: 12px;
+        font-weight: 800;
+        color: rgba(224, 242, 254, 0.95);
+      }
+      #mg-panel .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: rgba(148, 163, 184, 0.75);
+        box-shadow: 0 0 10px rgba(148, 163, 184, 0.35);
+      }
+      #mg-panel .dot.on {
+        background: rgba(0, 229, 255, 0.95);
+        box-shadow: 0 0 12px rgba(0, 229, 255, 0.65);
+      }
+      #mg-panel .list {
+        margin-top: 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        max-height: 260px;
+        overflow: auto;
+        padding-right: 2px;
+      }
+      #mg-panel .item {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 8px 10px;
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        background: rgba(255, 255, 255, 0.03);
+        cursor: pointer;
+      }
+      #mg-panel .item:hover {
+        border-color: rgba(0, 229, 255, 0.25);
+        background: rgba(0, 229, 255, 0.06);
+      }
+      #mg-panel .item .l {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        min-width: 0;
+      }
+      #mg-panel .item .k {
+        font-size: 11px;
+        color: rgba(148, 163, 184, 0.95);
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+        font-weight: 800;
+      }
+      #mg-panel .item .v {
+        font-size: 12px;
+        font-weight: 800;
+        color: rgba(226, 232, 240, 0.95);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      #mg-panel .item .meta {
+        font-size: 10px;
+        color: rgba(148, 163, 184, 0.9);
+        text-align: right;
+        white-space: nowrap;
+        flex-shrink: 0;
+      }
+      #mg-panel .actions {
+        margin-top: 12px;
+        display: flex;
+        gap: 10px;
+        justify-content: flex-end;
+        flex-wrap: wrap;
+      }
+
+      /* (mg-details removed; gerência agora só mostra listas exportáveis) */
+
+      /* Dataset modal (table) */
+      #mg-data-overlay {
+        position: fixed;
+        inset: 0;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        background: rgba(0, 0, 0, 0.65);
+        z-index: 10002;
+        font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans",
+          "Liberation Sans", sans-serif;
+      }
+      #mg-data-overlay.open {
+        display: flex;
+      }
+      #mg-data {
+        width: min(1080px, calc(100vw - 32px));
+        max-height: min(760px, calc(100vh - 32px));
+        display: flex;
+        flex-direction: column;
+        background: rgba(15, 23, 42, 0.94);
+        border: 1px solid rgba(148, 163, 184, 0.22);
+        border-radius: 16px;
+        box-shadow: 0 18px 85px rgba(0, 0, 0, 0.72);
+        padding: 14px;
+        color: rgba(226, 232, 240, 0.95);
+        overflow: hidden;
+      }
+      #mg-data .hdr {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 10px;
+      }
+      #mg-data .hdr h3 {
+        margin: 0;
+        font-size: 14px;
+        letter-spacing: 0.4px;
+        text-transform: uppercase;
+        color: rgba(226, 232, 240, 0.92);
+      }
+      #mg-data .meta {
+        margin-top: 4px;
+        font-size: 11px;
+        color: rgba(148, 163, 184, 0.95);
+      }
+      #mg-data .toolbar {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        margin-bottom: 10px;
+      }
+      #mg-data .search {
+        flex: 1;
+        min-width: 220px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 10px;
+        border-radius: 12px;
+        border: 1px solid rgba(148, 163, 184, 0.22);
+        background: rgba(255, 255, 255, 0.04);
+      }
+      #mg-data input {
+        width: 100%;
+        border: 0;
+        outline: none;
+        background: transparent;
+        color: rgba(226, 232, 240, 0.95);
+        font-weight: 700;
+        font-size: 12px;
+      }
+      #mg-data .table-wrap {
+        flex: 1;
+        overflow: auto;
+        border-radius: 14px;
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        background: rgba(255, 255, 255, 0.02);
+      }
+      #mg-data table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 12px;
+      }
+      #mg-data th,
+      #mg-data td {
+        padding: 10px 10px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        vertical-align: top;
+      }
+      #mg-data th {
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        text-align: left;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.35px;
+        color: rgba(148, 163, 184, 0.95);
+        background: rgba(15, 23, 42, 0.98);
+        backdrop-filter: blur(10px);
+      }
+      #mg-data td {
+        color: rgba(226, 232, 240, 0.95);
+        font-weight: 700;
+      }
+      #mg-data tr:hover td {
+        background: rgba(0, 229, 255, 0.06);
+      }
+      #mg-data .footer {
+        margin-top: 10px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+      #mg-page {
+        font-size: 11px;
+        color: rgba(148, 163, 184, 0.95);
+        font-weight: 800;
+      }
+      #mg-data .btnrow {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+      }
+
+      /* Export menu (choose option) */
+      #mg-menu-overlay {
+        position: fixed;
+        inset: 0;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        background: rgba(0, 0, 0, 0.62);
+        z-index: 10003;
+        font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans",
+          "Liberation Sans", sans-serif;
+      }
+      #mg-menu-overlay.open {
+        display: flex;
+      }
+      #mg-menu {
+        width: min(520px, calc(100vw - 32px));
+        background: rgba(15, 23, 42, 0.94);
+        border: 1px solid rgba(148, 163, 184, 0.22);
+        border-radius: 16px;
+        box-shadow: 0 18px 85px rgba(0, 0, 0, 0.72);
+        padding: 14px;
+        color: rgba(226, 232, 240, 0.95);
+      }
+      #mg-menu .hdr {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 10px;
+      }
+      #mg-menu .hdr h3 {
+        margin: 0;
+        font-size: 14px;
+        letter-spacing: 0.4px;
+        text-transform: uppercase;
+        color: rgba(226, 232, 240, 0.92);
+      }
+      #mg-menu .opts {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      #mg-menu .opt {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 10px 12px;
+        border-radius: 14px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        background: rgba(255, 255, 255, 0.04);
+        cursor: pointer;
+      }
+      #mg-menu .opt:hover {
+        border-color: rgba(0, 229, 255, 0.35);
+        background: rgba(0, 229, 255, 0.08);
+      }
+      #mg-menu .opt .l {
+        font-weight: 900;
+        letter-spacing: 0.2px;
+      }
+      #mg-menu .opt .r {
+        font-family: ui-monospace, "JetBrains Mono", SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+        font-weight: 900;
+        color: rgba(224, 242, 254, 0.95);
+      }
+      #mg-menu .hint {
+        margin-top: 10px;
+        font-size: 11px;
+        color: rgba(148, 163, 184, 0.95);
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
     </style>
   </head>
   <body>
@@ -137,6 +471,76 @@
       </div>
     </div>
 
+    <div id="mg-panel" aria-hidden="true">
+      <div class="top">
+        <div>
+          <div class="title">Gerência</div>
+          <div class="sub">Modo seleção: clique em qualquer campo da tela para ver detalhes e exportar Excel.</div>
+        </div>
+        <div class="pill" title="Status do modo seleção">
+          <span class="dot" id="mg-dot"></span>
+          <span id="mg-status">Inativo</span>
+        </div>
+      </div>
+      <div class="sub" style="display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap;">
+        <span>Atalho: Ctrl+Shift+G</span>
+        <span>Esc fecha detalhes / desativa seleção</span>
+      </div>
+      <div class="list" id="mg-list"></div>
+      <div class="actions">
+        <button class="mn-btn" id="mg-toggle" type="button">Ativar seleção</button>
+        <button class="mn-btn" id="mg-close" type="button">Fechar</button>
+      </div>
+    </div>
+
+    <div id="mg-data-overlay" role="dialog" aria-modal="true" aria-hidden="true">
+      <div id="mg-data">
+        <div class="hdr">
+          <div>
+            <h3 id="mg-data-title">Lista</h3>
+            <div class="meta" id="mg-data-meta">—</div>
+          </div>
+          <button class="mn-btn" id="mg-data-x" type="button">Fechar</button>
+        </div>
+        <div class="toolbar">
+          <div class="search">
+            <span style="font-weight:900; color:rgba(0,229,255,.9);">⌕</span>
+            <input id="mg-data-search" placeholder="Buscar por chassi / modelo / nota..." />
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr id="mg-data-head"></tr>
+            </thead>
+            <tbody id="mg-data-body"></tbody>
+          </table>
+        </div>
+        <div class="footer">
+          <div id="mg-page">—</div>
+          <div class="btnrow">
+            <button class="mn-btn" id="mg-prev" type="button">Anterior</button>
+            <button class="mn-btn" id="mg-next" type="button">Próximo</button>
+            <button class="mn-btn primary" id="mg-export-list" type="button">Exportar Excel</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="mg-menu-overlay" role="dialog" aria-modal="true" aria-hidden="true">
+      <div id="mg-menu">
+        <div class="hdr">
+          <h3 id="mg-menu-title">Opções</h3>
+          <button class="mn-btn" id="mg-menu-x" type="button">Fechar</button>
+        </div>
+        <div class="opts" id="mg-menu-opts"></div>
+        <div class="hint">
+          <span>Clique para abrir a lista</span>
+          <span>Esc fecha</span>
+        </div>
+      </div>
+    </div>
+
     <script>
       const DURATION_MS = 120000;
 
@@ -148,6 +552,7 @@
       const ready = { index: false, mapa: false };
       let filters = { montadora: "", proprietario: "" };
       let current = "index";
+      let manageInitDone = false;
 
       function setActive(name) {
         Object.entries(frames).forEach(([k, el]) => {
@@ -155,6 +560,10 @@
           el.classList.toggle("active", k === name);
         });
         current = name;
+        if (manageInitDone && isManageOpen() && managePickEnabled) {
+          broadcastPick(false);
+          broadcastPick(true);
+        }
       }
 
       function postRefresh(name) {
@@ -175,6 +584,24 @@
         } catch (_) {}
       }
 
+      function postPick(name, enabled) {
+        try {
+          frames[name]?.contentWindow?.postMessage({ type: "avantrax:pick_enable", enabled }, "*");
+        } catch (_) {}
+      }
+
+      function broadcastPick(enabled) {
+        // Only the active frame needs to be pick-enabled, but disable all first for safety.
+        Object.keys(frames).forEach((name) => postPick(name, false));
+        if (enabled && current === "index") postPick(current, true);
+      }
+
+      function postDatasetRequest(id) {
+        try {
+          frames[current]?.contentWindow?.postMessage({ type: "avantrax:dataset_request", id }, "*");
+        } catch (_) {}
+      }
+
       function getNext() {
         return current === "index" ? "mapa" : "index";
       }
@@ -192,8 +619,11 @@
       function scheduleSwitch(ms = DURATION_MS) {
         if (switchTimer) clearTimeout(switchTimer);
         switchTimer = setTimeout(() => {
-          trySwitch();
-          scheduleSwitch(DURATION_MS);
+          try {
+            trySwitch();
+          } finally {
+            scheduleSwitch(DURATION_MS);
+          }
         }, ms);
       }
 
@@ -267,12 +697,22 @@
           ready[data.page] = true;
           postFilters(data.page);
           if (isManualOpen()) updateManualUI();
+          if (isManageOpen()) updateManageUI();
         }
         if (data.type === "avantrax:data_updated") {
           postRefresh("mapa");
         }
         if (data.type === "avantrax:manual_switch_open") {
           openManualNav();
+        }
+        if (data.type === "avantrax:manage_open") {
+          openManage();
+        }
+        if (data.type === "avantrax:dataset_selected" && data.dataset && typeof data.dataset === "object") {
+          onDatasetSelected(data.dataset);
+        }
+        if (data.type === "avantrax:export_menu" && data.menu && typeof data.menu === "object") {
+          onExportMenu(data.menu);
         }
         if (data.type === "avantrax:filters" && data.filters && typeof data.filters === "object") {
           filters = {
@@ -297,6 +737,379 @@
       postRefresh("index");
 
       scheduleSwitch(DURATION_MS);
+
+      // ─────────────────────────────────────────────────────────────
+      // Management (pick & export)
+      // ─────────────────────────────────────────────────────────────
+      const mgPanel = document.getElementById("mg-panel");
+      const mgList = document.getElementById("mg-list");
+      const mgToggle = document.getElementById("mg-toggle");
+      const mgClose = document.getElementById("mg-close");
+      const mgDot = document.getElementById("mg-dot");
+      const mgStatus = document.getElementById("mg-status");
+
+      var managePickEnabled = false;
+      const selectedEvents = [];
+      let activeDataset = null;
+
+      const mgMenuOverlay = document.getElementById("mg-menu-overlay");
+      const mgMenuTitle = document.getElementById("mg-menu-title");
+      const mgMenuX = document.getElementById("mg-menu-x");
+      const mgMenuOpts = document.getElementById("mg-menu-opts");
+      let activeMenu = null;
+
+      const mgDataOverlay = document.getElementById("mg-data-overlay");
+      const mgDataTitle = document.getElementById("mg-data-title");
+      const mgDataMeta = document.getElementById("mg-data-meta");
+      const mgDataX = document.getElementById("mg-data-x");
+      const mgDataSearch = document.getElementById("mg-data-search");
+      const mgDataHead = document.getElementById("mg-data-head");
+      const mgDataBody = document.getElementById("mg-data-body");
+      const mgPrev = document.getElementById("mg-prev");
+      const mgNext = document.getElementById("mg-next");
+      const mgExportList = document.getElementById("mg-export-list");
+      const mgPage = document.getElementById("mg-page");
+
+      let mgQuery = "";
+      let mgPageIdx = 0;
+      const MG_PAGE_SIZE = 50;
+
+      function isManageOpen() {
+        return mgPanel.classList.contains("open");
+      }
+
+      function isDataOpen() {
+        return mgDataOverlay.classList.contains("open");
+      }
+
+      function isMenuOpen() {
+        return mgMenuOverlay.classList.contains("open");
+      }
+
+      function setManagePickEnabled(enabled) {
+        managePickEnabled = !!enabled && current === "index";
+        broadcastPick(managePickEnabled);
+        updateManageUI();
+      }
+
+      function updateManageUI() {
+        if (mgDot) mgDot.classList.toggle("on", managePickEnabled);
+        if (mgStatus) mgStatus.textContent = managePickEnabled ? "Seleção ativa" : (current === "index" ? "Inativo" : "Disponível no Dashboard");
+        if (mgToggle) mgToggle.textContent = managePickEnabled ? "Desativar seleção" : "Ativar seleção";
+        if (mgToggle) mgToggle.disabled = current !== "index";
+
+        if (!mgList) return;
+        mgList.innerHTML = "";
+        if (!selectedEvents.length) {
+          const empty = document.createElement("div");
+          empty.style.cssText =
+            "padding:10px; border-radius:12px; border:1px dashed rgba(148,163,184,.25); color:rgba(148,163,184,.95); font-size:12px;";
+          empty.textContent = current === "index"
+            ? "Ative a seleção e clique em um card exportável (ex: Status de Faturamento)."
+            : "Abra o Dashboard (tela principal) para exportar listas do Inventário/Embarcados.";
+          mgList.appendChild(empty);
+          return;
+        }
+
+        selectedEvents
+          .slice()
+          .reverse()
+          .slice(0, 12)
+          .forEach((f) => {
+            const item = document.createElement("div");
+            item.className = "item";
+            const kind = f.kind || "field";
+            const leftK = kind === "dataset" ? "Consulta" : (f.label || f.id || f.tag || "Campo");
+            const leftV = kind === "dataset" ? `${f.title || "Lista"} (${Number(f.count || 0).toLocaleString("pt-BR")})` : (f.value || f.text || "—");
+            const meta = `${(f.page || "").toUpperCase()}<br/>${escapeHtml(formatTime(f.timestamp))}`;
+            item.innerHTML = `
+              <div class="l">
+                <div class="k">${escapeHtml(leftK)}</div>
+                <div class="v">${escapeHtml(String(leftV || "—").slice(0, 180))}</div>
+              </div>
+              <div class="meta">${meta}</div>
+            `;
+            item.addEventListener("click", () => {
+              if (kind === "dataset") openDataset(f);
+              else openDetails(f);
+            });
+            mgList.appendChild(item);
+          });
+      }
+
+      function openManage() {
+        mgPanel.classList.add("open");
+        mgPanel.setAttribute("aria-hidden", "false");
+        if (!managePickEnabled) setManagePickEnabled(true);
+        updateManageUI();
+      }
+
+      function closeManage() {
+        mgPanel.classList.remove("open");
+        mgPanel.setAttribute("aria-hidden", "true");
+        setManagePickEnabled(false);
+      }
+
+      function onDatasetSelected(dataset) {
+        const normalized = normalizeDataset(dataset);
+        selectedEvents.push({ ...normalized, kind: "dataset" });
+        if (selectedEvents.length > 50) selectedEvents.shift();
+        updateManageUI();
+        openDataset(normalized);
+      }
+
+      function closeMenu() {
+        mgMenuOverlay.classList.remove("open");
+        mgMenuOverlay.setAttribute("aria-hidden", "true");
+      }
+
+      function openMenu(menu) {
+        activeMenu = menu || null;
+        if (mgMenuTitle) mgMenuTitle.textContent = String(menu?.title || "Opções");
+        if (mgMenuOpts) {
+          mgMenuOpts.innerHTML = "";
+          const opts = Array.isArray(menu?.options) ? menu.options : [];
+          opts.forEach((o) => {
+            const div = document.createElement("div");
+            div.className = "opt";
+            const cnt = Number(o.count || 0);
+            div.innerHTML = `<div class="l">${escapeHtml(o.label || o.id || "Opção")}</div><div class="r">${cnt.toLocaleString("pt-BR")}</div>`;
+            div.addEventListener("click", () => {
+              closeMenu();
+              postDatasetRequest(String(o.id || ""));
+            });
+            mgMenuOpts.appendChild(div);
+          });
+          if (!opts.length) {
+            const div = document.createElement("div");
+            div.style.cssText =
+              "padding:10px; border-radius:12px; border:1px dashed rgba(148,163,184,.25); color:rgba(148,163,184,.95); font-size:12px;";
+            div.textContent = "Sem opções.";
+            mgMenuOpts.appendChild(div);
+          }
+        }
+        mgMenuOverlay.classList.add("open");
+        mgMenuOverlay.setAttribute("aria-hidden", "false");
+      }
+
+      function onExportMenu(menu) {
+        openMenu(menu);
+      }
+
+      function normalizeDataset(d) {
+        const nowIso = new Date().toISOString();
+        const cols = Array.isArray(d.columns) ? d.columns.filter((c) => c && typeof c === "object") : [];
+        const rows = Array.isArray(d.rows) ? d.rows : [];
+        return {
+          page: String(d.page || ""),
+          dataset: String(d.dataset || ""),
+          title: String(d.title || "Lista"),
+          count: Number(d.count || rows.length || 0),
+          columns: cols,
+          rows,
+          timestamp: String(d.timestamp || nowIso),
+        };
+      }
+
+      function closeDataset() {
+        mgDataOverlay.classList.remove("open");
+        mgDataOverlay.setAttribute("aria-hidden", "true");
+      }
+
+      function openDataset(d) {
+        activeDataset = d || null;
+        mgQuery = "";
+        mgPageIdx = 0;
+        if (mgDataSearch) mgDataSearch.value = "";
+        renderDataset();
+        mgDataOverlay.classList.add("open");
+        mgDataOverlay.setAttribute("aria-hidden", "false");
+        setTimeout(() => mgDataSearch && mgDataSearch.focus(), 0);
+      }
+
+      function getDatasetFilteredRows() {
+        const rows = Array.isArray(activeDataset?.rows) ? activeDataset.rows : [];
+        const q = String(mgQuery || "").trim().toLowerCase();
+        if (!q) return rows;
+        const cols = Array.isArray(activeDataset?.columns) ? activeDataset.columns : [];
+        return rows.filter((r) => {
+          try {
+            const parts = cols.map((c) => String(r?.[c.key] ?? "")).join(" ").toLowerCase();
+            return parts.includes(q);
+          } catch (_) {
+            return false;
+          }
+        });
+      }
+
+      function renderDataset() {
+        if (!activeDataset) return;
+        const cols = Array.isArray(activeDataset.columns) && activeDataset.columns.length ? activeDataset.columns : [];
+        const all = getDatasetFilteredRows();
+        const total = all.length;
+        const totalPages = Math.max(1, Math.ceil(total / MG_PAGE_SIZE));
+        mgPageIdx = Math.min(Math.max(0, mgPageIdx), totalPages - 1);
+
+        if (mgDataTitle) mgDataTitle.textContent = activeDataset.title || "Lista";
+        if (mgDataMeta) {
+          const labelDs = activeDataset.dataset ? ` • ${String(activeDataset.dataset).toUpperCase()}` : "";
+          mgDataMeta.textContent = `${total.toLocaleString("pt-BR")} itens${labelDs}`;
+        }
+
+        if (mgDataHead) {
+          mgDataHead.innerHTML = "";
+          cols.forEach((c) => {
+            const th = document.createElement("th");
+            th.textContent = String(c.label || c.key || "");
+            mgDataHead.appendChild(th);
+          });
+        }
+
+        if (mgDataBody) {
+          mgDataBody.innerHTML = "";
+          const start = mgPageIdx * MG_PAGE_SIZE;
+          const slice = all.slice(start, start + MG_PAGE_SIZE);
+          slice.forEach((r) => {
+            const tr = document.createElement("tr");
+            cols.forEach((c) => {
+              const td = document.createElement("td");
+              td.textContent = String(r?.[c.key] ?? "");
+              tr.appendChild(td);
+            });
+            mgDataBody.appendChild(tr);
+          });
+          if (!slice.length) {
+            const tr = document.createElement("tr");
+            const td = document.createElement("td");
+            td.colSpan = Math.max(1, cols.length);
+            td.style.cssText = "padding:14px; color:rgba(148,163,184,.95); font-weight:800;";
+            td.textContent = "Nenhum resultado.";
+            tr.appendChild(td);
+            mgDataBody.appendChild(tr);
+          }
+        }
+
+        if (mgPrev) mgPrev.disabled = mgPageIdx <= 0;
+        if (mgNext) mgNext.disabled = mgPageIdx >= totalPages - 1;
+        if (mgPage) mgPage.textContent = `Página ${mgPageIdx + 1} / ${totalPages}`;
+      }
+
+      function exportDatasetToExcel(d) {
+        const cols = Array.isArray(d?.columns) ? d.columns : [];
+        const rows = getDatasetFilteredRows();
+        const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+        const safe = (s) => String(s || "").replace(/[\\/:*?"<>|]+/g, "-").trim();
+        const name = safe(`avantrax-${d?.dataset || "dados"}-${(d?.title || "lista").slice(0, 60)}-${stamp}`).slice(0, 140) + ".xlsx";
+
+        // Convert to label-based keys for Excel readability
+        const exportRows = rows.map((r) => {
+          const o = {};
+          cols.forEach((c) => (o[String(c.label || c.key)] = r?.[c.key] ?? ""));
+          return o;
+        });
+
+        const XLSXLib = window.XLSX;
+        if (!XLSXLib || !XLSXLib.utils) {
+          const header = cols.map((c) => `"${String(c.label || c.key).replace(/\"/g, '""')}"`).join(",");
+          const csv = [header]
+            .concat(
+              exportRows.map((row) =>
+                cols
+                  .map((c) => `"${String(row[String(c.label || c.key)] ?? "").replace(/\"/g, '""')}"`)
+                  .join(",")
+              )
+            )
+            .join("\n");
+          const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+          const a = document.createElement("a");
+          a.href = URL.createObjectURL(blob);
+          a.download = name.replace(/\.xlsx$/i, ".csv");
+          a.click();
+          setTimeout(() => URL.revokeObjectURL(a.href), 1500);
+          return;
+        }
+
+        const wb = XLSXLib.utils.book_new();
+        const ws = XLSXLib.utils.json_to_sheet(exportRows);
+        XLSXLib.utils.book_append_sheet(wb, ws, "Lista");
+        XLSXLib.writeFile(wb, name);
+      }
+
+      function formatTime(iso) {
+        if (!iso) return "--:--";
+        try {
+          const d = new Date(iso);
+          const hh = String(d.getHours()).padStart(2, "0");
+          const mm = String(d.getMinutes()).padStart(2, "0");
+          const ss = String(d.getSeconds()).padStart(2, "0");
+          return `${hh}:${mm}:${ss}`;
+        } catch (_) {
+          return "--:--";
+        }
+      }
+
+      function escapeHtml(s) {
+        return String(s ?? "")
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/\"/g, "&quot;")
+          .replace(/'/g, "&#39;");
+      }
+
+      mgToggle.addEventListener("click", () => setManagePickEnabled(!managePickEnabled));
+      mgClose.addEventListener("click", closeManage);
+
+      window.addEventListener("keydown", (e) => {
+        const key = String(e.key || "").toLowerCase();
+        if (e.ctrlKey && e.shiftKey && key === "g") {
+          e.preventDefault();
+          isManageOpen() ? closeManage() : openManage();
+          return;
+        }
+        if (key === "escape") {
+          if (isMenuOpen()) {
+            e.preventDefault();
+            closeMenu();
+            return;
+          }
+          if (isDataOpen()) {
+            e.preventDefault();
+            closeDataset();
+            return;
+          }
+          if (managePickEnabled) {
+            e.preventDefault();
+            setManagePickEnabled(false);
+          }
+        }
+      });
+
+      mgMenuX.addEventListener("click", closeMenu);
+      mgMenuOverlay.addEventListener("click", (e) => {
+        if (e.target === mgMenuOverlay) closeMenu();
+      });
+
+      mgDataX.addEventListener("click", closeDataset);
+      mgDataOverlay.addEventListener("click", (e) => {
+        if (e.target === mgDataOverlay) closeDataset();
+      });
+      mgDataSearch.addEventListener("input", (e) => {
+        mgQuery = String(e.target.value || "");
+        mgPageIdx = 0;
+        renderDataset();
+      });
+      mgPrev.addEventListener("click", () => {
+        mgPageIdx = Math.max(0, mgPageIdx - 1);
+        renderDataset();
+      });
+      mgNext.addEventListener("click", () => {
+        mgPageIdx = mgPageIdx + 1;
+        renderDataset();
+      });
+      mgExportList.addEventListener("click", () => activeDataset && exportDatasetToExcel(activeDataset));
+
+      manageInitDone = true;
     </script>
   </body>
 </html>
