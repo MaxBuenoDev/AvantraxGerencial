@@ -1113,6 +1113,43 @@ async function parseXLSX(file) {
     return XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
 }
 
+function analyzeInventarioRows(rows) {
+    const keys = collectKeys(rows);
+    const localKey =
+        findBestKey(
+            rows,
+            [
+                'LOCAL_ENTREGA','LOCAL ENTREGA','LOCAL DE ENTREGA','LOC_ENTREGA','LOC ENTREGA','LOCALENTREGA',
+                'DESTINO','CIDADE DESTINO','CIDADE_DESTINO','MUNICIPIO DESTINO','MUNICIPIO_DESTINO','MUNICÍPIO DESTINO',
+                'LOCAL_DESTINO','LOCAL DESTINO','LOCAL DE DESTINO','CIDADE','MUNICIPIO','MUNICÍPIO','UF_DESTINO','UF DESTINO'
+            ],
+            ['ENTREGA','DESTINO','LOCAL','CIDADE','MUNICIP']
+        ) || detectLocalKeyByValues(rows);
+    const countryKey = findCol(rows, ['PAIS_DESTINO','PAIS DESTINO','PAÍS_DESTINO','PAÍS DESTINO','PAIS','PAÍS']);
+    const statusKey = findCol(rows, ['STAT_FAT','STAT FAT','STATUS_FATURAMENTO','STATUS FAT','STATFAT']);
+
+    return {
+        keyCount: keys.length,
+        localKey,
+        countryKey,
+        statusKey,
+        looksIncompleteForMap: !localKey || keys.length <= 16,
+    };
+}
+
+function getInventarioMapWarning(rows) {
+    const info = analyzeInventarioRows(rows);
+    if (!info.looksIncompleteForMap) return '';
+    return [
+        'Inventário incompleto para o mapa.',
+        `Colunas encontradas: ${info.keyCount}.`,
+        `LOCAL/DESTINO: ${info.localKey || 'não encontrado'}.`,
+        `PAIS_DESTINO: ${info.countryKey || 'não encontrado'}.`,
+        `STAT_FAT: ${info.statusKey || 'não encontrado'}.`,
+        'Esse arquivo parece ser uma versão resumida do inventário de pátio, sem as colunas necessárias para distribuir os veículos por estado.',
+    ].join(' ');
+}
+
 // ════════════════════════════════════════════════════════════════
 async function tryLoadFromSupabase() {
     if (!SupabaseStore.isConfigured()) return false;
@@ -1129,6 +1166,11 @@ async function tryLoadFromSupabase() {
         if (box) box.classList.add('loaded');
         if (lbl) lbl.textContent = '✓ ' + (inv?.meta?.file_name || 'inventario_de_patio.xlsx');
         const rows = await parseXLSX(inv.blob);
+        const warning = getInventarioMapWarning(rows);
+        if (warning) {
+            console.warn('[mapa] ' + warning);
+            if (lbl) lbl.textContent = warning;
+        }
         showDashboard(rows);
         return true;
     } catch (e) {
@@ -1192,6 +1234,11 @@ window.addEventListener('load', async () => {
         btn.disabled = true;
         try {
             const rows = await parseXLSX(invFile);
+            const warning = getInventarioMapWarning(rows);
+            if (warning) {
+                console.warn('[mapa] ' + warning);
+                alert(warning);
+            }
             if (SupabaseStore.isConfigured()) {
                 try {
                     btn.textContent = 'ENVIANDO PARA SUPABASE...';

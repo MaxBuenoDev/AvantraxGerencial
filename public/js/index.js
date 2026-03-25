@@ -607,6 +607,40 @@
             }
         };
 
+        const InventoryDiagnostics = {
+            analyze(rows) {
+                const keyCount = Object.keys(rows?.[0] ?? {}).length;
+                const localKey = DataService.findBestKey(
+                    rows,
+                    [
+                        'LOCAL_ENTREGA','LOCAL ENTREGA','LOCAL DE ENTREGA','LOC_ENTREGA','LOC ENTREGA','LOCALENTREGA',
+                        'DESTINO','CIDADE DESTINO','CIDADE_DESTINO','MUNICIPIO DESTINO','MUNICIPIO_DESTINO','MUNICÍPIO DESTINO',
+                        'LOCAL_DESTINO','LOCAL DESTINO','LOCAL DE DESTINO','CIDADE','MUNICIPIO','MUNICÍPIO','UF_DESTINO','UF DESTINO'
+                    ],
+                    ['ENTREGA','DESTINO','LOCAL','CIDADE','MUNICIP']
+                );
+                const statusKey = DataService.findBestKey(rows, ['STAT_FAT','STAT FAT','STATUS_FATURAMENTO','STATUS FAT','STATFAT'], ['STAT', 'FATUR']);
+                const countryKey = DataService.findBestKey(rows, ['PAIS_DESTINO','PAIS DESTINO','PAÍS_DESTINO','PAÍS DESTINO','PAIS','PAÍS'], ['PAIS', 'DESTINO']);
+                return {
+                    keyCount,
+                    localKey,
+                    statusKey,
+                    countryKey,
+                    looksIncompleteForMap: !localKey || keyCount <= 16,
+                };
+            },
+
+            warnIfIncomplete(rows, sourceLabel = 'inventário') {
+                const info = this.analyze(rows);
+                if (!info.looksIncompleteForMap) return;
+                console.warn(
+                    `[index] ${sourceLabel} parece incompleto para o mapa. ` +
+                    `colunas=${info.keyCount}, LOCAL/DESTINO=${info.localKey || 'não encontrado'}, ` +
+                    `PAIS_DESTINO=${info.countryKey || 'não encontrado'}, STAT_FAT=${info.statusKey || 'não encontrado'}`
+                );
+            },
+        };
+
         const DashboardRender = {
             charts: {},
             rotationMs: 120000,
@@ -797,6 +831,7 @@
                         Parser.parseFile(emb.blob),
                         Parser.parseFile(inv.blob),
                     ]);
+                    InventoryDiagnostics.warnIfIncomplete(dataInv, 'inventário carregado do Supabase');
                     DataService.setData('embarcados', dataEmb);
                     DataService.setData('inventario', dataInv);
                     this.renderAll();
@@ -857,6 +892,7 @@
                     try {
                         const dataEmb = await Parser.parseFile(this._embFile);
                         const dataInv = await Parser.parseFile(this._invFile);
+                        InventoryDiagnostics.warnIfIncomplete(dataInv, 'inventário enviado manualmente');
                         DataService.setData('embarcados', dataEmb);
                         DataService.setData('inventario', dataInv);
                         this.renderAll();
