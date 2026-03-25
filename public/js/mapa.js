@@ -188,7 +188,7 @@ const ViewportScale = {
     designHeight: 1080,
     _pendingRaf: 0,
     tuneKey: 'avantrax.viewport.tune.v1',
-    tune: { scalePct: 100, offsetY: 0 },
+    tune: { scalePct: 100, offsetY: 0, widthPct: 100 },
 
     loadTune() {
         try {
@@ -198,8 +198,10 @@ const ViewportScale = {
             if (!parsed || typeof parsed !== 'object') return;
             const scalePct = Number(parsed.scalePct);
             const offsetY = Number(parsed.offsetY);
+            const widthPct = Number(parsed.widthPct);
             if (Number.isFinite(scalePct)) this.tune.scalePct = Math.min(100, Math.max(80, Math.round(scalePct)));
             if (Number.isFinite(offsetY)) this.tune.offsetY = Math.min(180, Math.max(-180, Math.round(offsetY)));
+            if (Number.isFinite(widthPct)) this.tune.widthPct = Math.min(120, Math.max(80, Math.round(widthPct)));
         } catch (_) {}
     },
 
@@ -216,6 +218,10 @@ const ViewportScale = {
             if (next.offsetY !== undefined) {
                 const v = Number(next.offsetY);
                 if (Number.isFinite(v)) this.tune.offsetY = Math.min(180, Math.max(-180, Math.round(v)));
+            }
+            if (next.widthPct !== undefined) {
+                const v = Number(next.widthPct);
+                if (Number.isFinite(v)) this.tune.widthPct = Math.min(120, Math.max(80, Math.round(v)));
             }
         }
         this.persistTune();
@@ -234,17 +240,19 @@ const ViewportScale = {
         const base = Math.min(vw / this.designWidth, vh / this.designHeight);
         const baseScale = Number.isFinite(base) && base > 0 ? base : 1;
         const tuneScale = (this.tune.scalePct || 100) / 100;
-        const desiredScale = baseScale * tuneScale;
+        const desiredScaleY = baseScale * tuneScale;
+        const desiredScaleX = desiredScaleY * ((this.tune.widthPct || 100) / 100);
 
-        const setScaleAndCenter = (scale) => {
-            document.documentElement.style.setProperty('--ui-scale', String(scale));
-            const offsetX = Math.max(0, (vw - this.designWidth  * scale) / 2);
-            const offsetY = Math.max(0, (vh - this.designHeight * scale) / 2) + (this.tune.offsetY || 0) * scale;
+        const setScaleAndCenter = (scaleX, scaleY) => {
+            document.documentElement.style.setProperty('--ui-scale', String(scaleY));
+            document.documentElement.style.setProperty('--ui-scale-x', String(scaleX));
+            const offsetX = Math.max(0, (vw - this.designWidth  * scaleX) / 2);
+            const offsetY = Math.max(0, (vh - this.designHeight * scaleY) / 2) + (this.tune.offsetY || 0) * scaleY;
             root.style.left = `${Math.floor(offsetX + vpLeft)}px`;
             root.style.top  = `${Math.floor(offsetY + vpTop )}px`;
         };
 
-        setScaleAndCenter(desiredScale);
+        setScaleAndCenter(desiredScaleX, desiredScaleY);
 
         if (this._pendingRaf) cancelAnimationFrame(this._pendingRaf);
         this._pendingRaf = requestAnimationFrame(() => {
@@ -253,11 +261,11 @@ const ViewportScale = {
             const overflowX = rect.right  - (vpLeft + vw);
             const overflowY = rect.bottom - (vpTop  + vh);
             if (overflowX <= 0.5 && overflowY <= 0.5) return;
-            const fitX = vw / Math.max(1, rect.width);
-            const fitY = vh / Math.max(1, rect.height);
-            const corrected = desiredScale * Math.min(fitX, fitY) * 0.992;
-            const nextScale = Number.isFinite(corrected) && corrected > 0 ? corrected : desiredScale;
-            setScaleAndCenter(nextScale);
+            const fitX = overflowX > 0.5 ? (vw / Math.max(1, rect.width)) * 0.992 : 1;
+            const fitY = overflowY > 0.5 ? (vh / Math.max(1, rect.height)) * 0.992 : 1;
+            const nextScaleX = Number.isFinite(desiredScaleX * fitX) && desiredScaleX * fitX > 0 ? desiredScaleX * fitX : desiredScaleX;
+            const nextScaleY = Number.isFinite(desiredScaleY * fitY) && desiredScaleY * fitY > 0 ? desiredScaleY * fitY : desiredScaleY;
+            setScaleAndCenter(nextScaleX, nextScaleY);
         });
     },
 
@@ -286,6 +294,8 @@ const FiltersUI = {
         const tuneScaleVal = document.getElementById('tune-scale-val');
         const tuneOffsetY = document.getElementById('tune-offsety');
         const tuneOffsetYVal = document.getElementById('tune-offsety-val');
+        const tuneWidth = document.getElementById('tune-width');
+        const tuneWidthVal = document.getElementById('tune-width-val');
         if (!panel || !hotspot || !closeBtn || !applyBtn || !clearBtn || !montSel || !propSel) return;
 
         const open = () => {
@@ -296,6 +306,8 @@ const FiltersUI = {
             if (tuneScaleVal) tuneScaleVal.textContent = `${ViewportScale.tune.scalePct ?? 100}%`;
             if (tuneOffsetY)  tuneOffsetY.value  = String(ViewportScale.tune.offsetY ?? 0);
             if (tuneOffsetYVal) tuneOffsetYVal.textContent = String(ViewportScale.tune.offsetY ?? 0);
+            if (tuneWidth) tuneWidth.value = String(ViewportScale.tune.widthPct ?? 100);
+            if (tuneWidthVal) tuneWidthVal.textContent = `${ViewportScale.tune.widthPct ?? 100}%`;
         };
         const close = () => { panel.classList.remove('open'); panel.setAttribute('aria-hidden', 'true'); };
         const toggle= () => { panel.classList.contains('open') ? close() : open(); };
@@ -322,13 +334,18 @@ const FiltersUI = {
         propSel.onchange = applyFromUI;
 
         const applyTune = () => {
-            if (tuneScale) ViewportScale.setTune({ scalePct: Number(tuneScale.value) });
-            if (tuneOffsetY) ViewportScale.setTune({ offsetY: Number(tuneOffsetY.value) });
+            ViewportScale.setTune({
+                scalePct: tuneScale ? Number(tuneScale.value) : ViewportScale.tune.scalePct,
+                offsetY: tuneOffsetY ? Number(tuneOffsetY.value) : ViewportScale.tune.offsetY,
+                widthPct: tuneWidth ? Number(tuneWidth.value) : ViewportScale.tune.widthPct,
+            });
             if (tuneScaleVal) tuneScaleVal.textContent = `${ViewportScale.tune.scalePct}%`;
             if (tuneOffsetYVal) tuneOffsetYVal.textContent = String(ViewportScale.tune.offsetY);
+            if (tuneWidthVal) tuneWidthVal.textContent = `${ViewportScale.tune.widthPct}%`;
         };
         if (tuneScale) tuneScale.oninput = applyTune;
         if (tuneOffsetY) tuneOffsetY.oninput = applyTune;
+        if (tuneWidth) tuneWidth.oninput = applyTune;
 
         window.addEventListener('keydown', (e) => {
             const key = String(e.key || '').toLowerCase();

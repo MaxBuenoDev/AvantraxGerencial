@@ -11,6 +11,7 @@
             --warning: #F59E0B;
             --danger: #EF4444;
             --ui-scale: 1;
+            --ui-scale-x: 1;
         }
 
         * {
@@ -40,7 +41,7 @@
             left: 0;
             top: 0;
             transform-origin: 0 0;
-            transform: scale(var(--ui-scale));
+            transform: scale(var(--ui-scale-x), var(--ui-scale));
             z-index: 1;
         }
 
