@@ -1790,6 +1790,14 @@
                         dataset = FieldPicker.buildInventarioDataset('Status de Faturamento — Não Faturados', (r) => String(r?.STAT_FAT || '').trim().toUpperCase() === 'NAO FATURADO');
                     } else if (id === 'inv_bloqueados') {
                         dataset = FieldPicker.buildBloqueadosDataset();
+                    } else if (id === 'inv_aging_0_7') {
+                        dataset = FieldPicker.buildInventarioDataset('Heatmap de Aging (Pátio)  0-7 dias', (r) => { const a = Number(r?.AGING_PATIO) || 0; return a >= 0 && a <= 7; });
+                    } else if (id === 'inv_aging_8_30') {
+                        dataset = FieldPicker.buildInventarioDataset('Heatmap de Aging (Pátio) 8-30 dias', (r) => { const a = Number(r?.AGING_PATIO) || 0; return a >= 8 && a <= 30; });
+                    } else if (id === 'inv_aging_31_90') {
+                        dataset = FieldPicker.buildInventarioDataset('Heatmap de Aging (Pátio)  31-90 dias', (r) => { const a = Number(r?.AGING_PATIO) || 0; return a >= 31 && a <= 90; });
+                    } else if (id === 'inv_aging_90_plus') {
+                        dataset = FieldPicker.buildInventarioDataset('Heatmap de Aging (Pátio)  > 90 dias', (r) => { const a = Number(r?.AGING_PATIO) || 0; return a > 90; });
                     } else if (id === 'emb_hoje') {
                         dataset = FieldPicker.buildEmbarcadosHojeDataset();
                     }
@@ -1962,6 +1970,28 @@
                     try { window.parent?.postMessage({ type: 'avantrax:export_menu', menu }, '*'); } catch (_) {}
                     return;
                 }
+
+                if (action.type === 'aging_menu') {
+                    const inv = DataService.getFiltered('inventario') || [];
+                    const count07 = inv.filter(r => { const a = Number(r?.AGING_PATIO) || 0; return a >= 0 && a <= 7; }).length;
+                    const count830 = inv.filter(r => { const a = Number(r?.AGING_PATIO) || 0; return a >= 8 && a <= 30; }).length;
+                    const count3190 = inv.filter(r => { const a = Number(r?.AGING_PATIO) || 0; return a >= 31 && a <= 90; }).length;
+                    const count90p = inv.filter(r => { const a = Number(r?.AGING_PATIO) || 0; return a > 90; }).length;
+                    const menu = {
+                        id: 'aging_heatmap',
+                        title: 'Heatmap de Aging (Pátio)',
+                        page: 'index',
+                        options: [
+                            { id: 'inv_aging_0_7', label: '0-7 dias', count: count07 },
+                            { id: 'inv_aging_8_30', label: '8-30 dias', count: count830 },
+                            { id: 'inv_aging_31_90', label: '31-90 dias', count: count3190 },
+                            { id: 'inv_aging_90_plus', label: '> 90 dias', count: count90p },
+                        ],
+                        timestamp: new Date().toISOString(),
+                    };
+                    try { window.parent?.postMessage({ type: 'avantrax:export_menu', menu }, '*'); } catch (_) {}
+                    return;
+                }
             },
 
             pickExportAction(el) {
@@ -1975,6 +2005,9 @@
                     }
                     if (card && (card.querySelector?.('#bloq-grid') || card.querySelector?.('#bloq-badge') || /veiculos bloqueados/i.test(String(card.textContent || '')))) {
                         return { type: 'bloq_menu', el: card };
+                    }
+                    if (card && (card.querySelector?.('#aging-bands') || card.querySelector?.('#aging-avg-badge') || /heatmap de aging/i.test(String(card.textContent || '')))) {
+                        return { type: 'aging_menu', el: card };
                     }
 
                     return null;
