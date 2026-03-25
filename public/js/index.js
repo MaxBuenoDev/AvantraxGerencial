@@ -1952,7 +1952,7 @@
                     const bloqueadosCount = inv.filter(r => String(r?.['MOTIVO BLOQUEIO'] || '').trim() !== '').length;
                     const menu = {
                         id: 'bloq_status',
-                        title: 'Veículos Bloqueados',
+                        title: 'Veiculos Bloqueados',
                         page: 'index',
                         options: [
                             { id: 'inv_bloqueados', label: 'Lista de Bloqueados', count: bloqueadosCount },
@@ -2037,18 +2037,18 @@
                 });
 
                 const columns = [
-                    { key: 'proprietario', label: 'Proprietário' },
+                    { key: 'proprietario', label: 'Proprietario' },
                     { key: 'statFat', label: 'Status faturamento' },
                     { key: 'chassi', label: 'Chassi' },
                     { key: 'modelo', label: 'Modelo' },
                     { key: 'area', label: 'AR' },
-                    { key: 'endereco', label: 'Endereço' },
+                    { key: 'endereco', label: 'EndereÃ§o' },
                     { key: 'motivo', label: 'Motivo bloqueio' },
                     { key: 'tpVenda', label: 'TP Venda' },
                 ];
 
                 return {
-                    title: 'Veículos Bloqueados',
+                    title: 'Veiculos Bloqueados',
                     page: 'index',
                     dataset: 'inventario',
                     count: outRows.length,
