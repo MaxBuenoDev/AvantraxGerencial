@@ -232,4 +232,285 @@
             background:linear-gradient(90deg,transparent,rgba(0,191,255,.12),transparent);
             animation:scan 7s linear infinite;}
         @keyframes scan{0%{top:0}100%{top:100%}}
+
+        .presentation-controls{
+            display:flex;
+            flex-direction:column;
+            align-items:flex-end;
+            gap:6px;
+        }
+        .presentation-toggle-btn{
+            border:1px solid rgba(0,191,255,.35);
+            background:rgba(0,191,255,.12);
+            color:#EAF7FF;
+            border-radius:999px;
+            padding:8px 14px;
+            font-size:.68rem;
+            font-weight:800;
+            letter-spacing:.8px;
+            text-transform:uppercase;
+            cursor:pointer;
+            transition:.25s;
+        }
+        .presentation-toggle-btn:hover{
+            transform:translateY(-1px);
+            border-color:rgba(0,191,255,.55);
+            box-shadow:0 0 16px rgba(0,191,255,.18);
+        }
+        body.presentation-mode .presentation-toggle-btn{
+            border-color:rgba(148,163,184,.22);
+            background:rgba(15,23,42,.36);
+            color:rgba(203,213,225,.78);
+            box-shadow:none;
+            font-size:.64rem;
+            letter-spacing:.4px;
+            padding:6px 11px;
+        }
+        body.presentation-mode .presentation-toggle-btn:hover{
+            transform:none;
+            border-color:rgba(148,163,184,.28);
+            box-shadow:none;
+        }
+        .presentation-group-label{
+            font-size:.62rem;
+            color:var(--dim);
+            font-family:'JetBrains Mono',monospace;
+            min-height:.9rem;
+        }
+
+        body.presentation-mode .main{
+            position:relative;
+            display:block;
+            height:100% !important;
+            min-height:0;
+        }
+
+        body.presentation-mode .lcol,
+        body.presentation-mode .rcol{
+            display:block;
+        }
+
+        body.presentation-mode .main .card{
+            display:none !important;
+            position:absolute;
+            opacity:0;
+            transform:translateY(12px);
+            transition:opacity .5s ease, transform .5s ease;
+            overflow:hidden;
+        }
+
+        body.presentation-mode .main .card.presentation-slot-a,
+        body.presentation-mode .main .card.presentation-slot-b{
+            display:flex !important;
+            flex-direction:column;
+            align-items:stretch;
+            justify-content:flex-start;
+            opacity:1;
+            transform:translateY(0);
+            left:calc(70% + 10px) !important;
+            width:calc(30% - 10px) !important;
+            padding:20px;
+            border-color:rgba(0,191,255,.2);
+            box-shadow:0 18px 58px rgba(0,0,0,.3);
+        }
+
+        body.presentation-mode .main .card.presentation-slot-a{
+            top:0 !important;
+            height:calc(50% - 8px) !important;
+        }
+
+        body.presentation-mode .main .card.presentation-slot-b{
+            top:calc(50% + 8px) !important;
+            height:calc(50% - 8px) !important;
+        }
+
+        body.presentation-mode .mapcard{
+            position:absolute;
+            left:0 !important;
+            top:0 !important;
+            width:calc(70% - 10px) !important;
+            height:100% !important;
+            border-color:rgba(0,191,255,.24);
+            box-shadow:0 22px 70px rgba(0,0,0,.34);
+        }
+
+        body.presentation-mode .ct{
+            font-size:.92rem;
+            letter-spacing:1.8px;
+            margin-bottom:14px;
+            flex:0 0 auto;
+        }
+        body.presentation-mode .kmv{font-size:2.2rem;}
+        body.presentation-mode .kml{font-size:.72rem;}
+        body.presentation-mode .snm{font-size:.86rem;}
+        body.presentation-mode .scnt{font-size:1rem;}
+        body.presentation-mode .vi{padding:10px 12px;}
+        body.presentation-mode .vc,
+        body.presentation-mode .vm,
+        body.presentation-mode .vuf,
+        body.presentation-mode .vloc{font-size:.78rem;}
+        body.presentation-mode .mleg{font-size:.72rem;}
+        body.presentation-mode .hbadge{opacity:.35;}
+
+        /* Presentation mode: alignment and readability improvements */
+        body.presentation-mode .card.presentation-slot-a > :not(.ct),
+        body.presentation-mode .card.presentation-slot-b > :not(.ct){
+            flex:1 1 auto;
+            min-height:0;
+        }
+
+        body.presentation-mode [data-presentation-card="resumo"]{
+            padding:18px 18px 16px !important;
+        }
+        body.presentation-mode [data-presentation-card="resumo"] .kgrid{
+            display:grid;
+            grid-template-columns:repeat(2, minmax(0, 1fr));
+            gap:10px;
+            align-content:start;
+        }
+        body.presentation-mode [data-presentation-card="resumo"] .kmi{
+            border-radius:12px;
+            padding:14px 12px;
+        }
+        body.presentation-mode [data-presentation-card="resumo"] .kml{
+            font-size:.72rem;
+            margin-bottom:8px;
+        }
+        body.presentation-mode [data-presentation-card="resumo"] .kmv{
+            font-size:2rem;
+            line-height:1.05;
+        }
+
+        body.presentation-mode [data-presentation-card="top-paises"] #top-countries{
+            display:grid;
+            grid-template-columns:repeat(2, minmax(0, 1fr));
+            gap:10px;
+            align-content:start;
+            align-items:stretch;
+            overflow:auto;
+            padding-right:2px;
+        }
+        body.presentation-mode [data-presentation-card="top-paises"] #top-countries .srow{
+            border-bottom:none;
+            border:1px solid rgba(255,255,255,.08);
+            background:rgba(255,255,255,.03);
+            border-radius:10px;
+            padding:10px 10px;
+            min-height:70px;
+        }
+        body.presentation-mode [data-presentation-card="top-paises"] #top-countries .snm{
+            font-size:1rem;
+            font-weight:800;
+        }
+        body.presentation-mode [data-presentation-card="top-paises"] #top-countries .scnt{
+            width:auto;
+            min-width:48px;
+            font-size:1.2rem;
+        }
+        body.presentation-mode [data-presentation-card="top-paises"] #top-countries .strack{
+            width:88px;
+            height:7px;
+        }
+
+        body.presentation-mode [data-presentation-card="regioes"] #region-bars{
+            display:flex;
+            flex-direction:column;
+            gap:10px;
+            overflow:auto;
+            padding-right:2px;
+        }
+        body.presentation-mode [data-presentation-card="regioes"] .drow{
+            margin:0;
+            border:1px solid rgba(255,255,255,.08);
+            background:rgba(255,255,255,.03);
+            border-radius:10px;
+            padding:8px 10px;
+        }
+        body.presentation-mode [data-presentation-card="regioes"] .dlbl{
+            width:110px;
+            font-size:.92rem;
+            color:var(--text);
+        }
+        body.presentation-mode [data-presentation-card="regioes"] .dtrk{
+            height:20px;
+            border-radius:6px;
+        }
+        body.presentation-mode [data-presentation-card="regioes"] .dfl{
+            font-size:.72rem;
+            padding-left:8px;
+        }
+        body.presentation-mode [data-presentation-card="regioes"] .dvl{
+            width:44px;
+            font-size:1rem;
+        }
+
+        body.presentation-mode [data-presentation-card="top-locais"] #llist{
+            display:flex;
+            flex-direction:column;
+            gap:8px;
+            overflow:auto;
+            padding-right:2px;
+        }
+        body.presentation-mode [data-presentation-card="top-locais"] .lloc{
+            border-bottom:none;
+            border:1px solid rgba(255,255,255,.08);
+            background:rgba(255,255,255,.03);
+            border-radius:10px;
+            padding:10px 12px;
+            min-height:50px;
+            gap:12px;
+        }
+        body.presentation-mode [data-presentation-card="top-locais"] .lloc > div:first-child{
+            font-size:.9rem !important;
+            font-weight:800 !important;
+            line-height:1.15;
+            min-width:0;
+        }
+        body.presentation-mode [data-presentation-card="top-locais"] .lloc > div:nth-child(2){
+            width:94px !important;
+            height:7px !important;
+            border-radius:6px !important;
+        }
+        body.presentation-mode [data-presentation-card="top-locais"] .lloc > div:nth-child(2) > div{
+            height:100% !important;
+            border-radius:6px !important;
+        }
+        body.presentation-mode [data-presentation-card="top-locais"] .lloc > div:last-child{
+            width:64px !important;
+            min-width:64px !important;
+            font-size:1.2rem !important;
+            font-weight:800 !important;
+            letter-spacing:.2px;
+            text-align:right;
+            flex-shrink:0;
+        }
+        body.presentation-mode [data-presentation-card="top-locais"] .strack{
+            width:86px;
+            height:7px;
+        }
+
+        body.presentation-mode [data-presentation-card="top-estados"] #top-states .srow{
+            gap:10px;
+        }
+        body.presentation-mode [data-presentation-card="top-estados"] #top-states .snm{
+            min-width:0;
+        }
+        body.presentation-mode [data-presentation-card="top-estados"] #top-states .strack{
+            width:84px;
+            height:7px;
+            flex-shrink:0;
+        }
+        body.presentation-mode [data-presentation-card="top-estados"] #top-states .scnt{
+            width:64px;
+            min-width:64px;
+            font-size:1.15rem;
+            font-weight:800;
+            overflow:visible;
+            flex-shrink:0;
+            text-align:right;
+        }
+
+        html.presentation-mode-root{
+            font-size:19px;
+        }
     

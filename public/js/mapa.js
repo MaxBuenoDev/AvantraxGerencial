@@ -208,7 +208,7 @@ const ViewportScale = {
     designHeight: 1080,
     _pendingRaf: 0,
     tuneKey: 'avantrax.viewport.tune.v1',
-    tune: { scalePct: 100, offsetY: 0, widthPct: 100 },
+    tune: { scalePct: 100, offsetY: 0, widthPct: 100, heightPct: 100 },
 
     loadTune() {
         try {
@@ -219,9 +219,11 @@ const ViewportScale = {
             const scalePct = Number(parsed.scalePct);
             const offsetY = Number(parsed.offsetY);
             const widthPct = Number(parsed.widthPct);
+            const heightPct = Number(parsed.heightPct);
             if (Number.isFinite(scalePct)) this.tune.scalePct = Math.min(100, Math.max(80, Math.round(scalePct)));
             if (Number.isFinite(offsetY)) this.tune.offsetY = Math.min(180, Math.max(-180, Math.round(offsetY)));
             if (Number.isFinite(widthPct)) this.tune.widthPct = Math.min(120, Math.max(80, Math.round(widthPct)));
+            if (Number.isFinite(heightPct)) this.tune.heightPct = Math.min(130, Math.max(80, Math.round(heightPct)));
         } catch (_) {}
     },
 
@@ -243,6 +245,10 @@ const ViewportScale = {
                 const v = Number(next.widthPct);
                 if (Number.isFinite(v)) this.tune.widthPct = Math.min(120, Math.max(80, Math.round(v)));
             }
+            if (next.heightPct !== undefined) {
+                const v = Number(next.heightPct);
+                if (Number.isFinite(v)) this.tune.heightPct = Math.min(130, Math.max(80, Math.round(v)));
+            }
         }
         this.persistTune();
         this.apply();
@@ -257,11 +263,14 @@ const ViewportScale = {
         const vpLeft = viewport && typeof viewport.offsetLeft === 'number' ? viewport.offsetLeft : 0;
         const vpTop  = viewport && typeof viewport.offsetTop  === 'number' ? viewport.offsetTop  : 0;
 
-        const base = Math.min(vw / this.designWidth, vh / this.designHeight);
-        const baseScale = Number.isFinite(base) && base > 0 ? base : 1;
+        const isPresentation = document.body.classList.contains('presentation-mode');
+        const baseX = isPresentation ? (vw / this.designWidth) : Math.min(vw / this.designWidth, vh / this.designHeight);
+        const baseY = isPresentation ? (vh / this.designHeight) : Math.min(vw / this.designWidth, vh / this.designHeight);
+        const safeBaseX = Number.isFinite(baseX) && baseX > 0 ? baseX : 1;
+        const safeBaseY = Number.isFinite(baseY) && baseY > 0 ? baseY : 1;
         const tuneScale = (this.tune.scalePct || 100) / 100;
-        const desiredScaleY = baseScale * tuneScale;
-        const desiredScaleX = desiredScaleY * ((this.tune.widthPct || 100) / 100);
+        const desiredScaleX = safeBaseX * tuneScale * ((this.tune.widthPct || 100) / 100);
+        const desiredScaleY = safeBaseY * tuneScale * ((this.tune.heightPct || 100) / 100);
 
         const setScaleAndCenter = (scaleX, scaleY) => {
             document.documentElement.style.setProperty('--ui-scale', String(scaleY));
@@ -316,6 +325,8 @@ const FiltersUI = {
         const tuneOffsetYVal = document.getElementById('tune-offsety-val');
         const tuneWidth = document.getElementById('tune-width');
         const tuneWidthVal = document.getElementById('tune-width-val');
+        const tuneHeight = document.getElementById('tune-height');
+        const tuneHeightVal = document.getElementById('tune-height-val');
         if (!panel || !hotspot || !closeBtn || !applyBtn || !clearBtn || !montSel || !propSel) return;
 
         const open = () => {
@@ -328,6 +339,8 @@ const FiltersUI = {
             if (tuneOffsetYVal) tuneOffsetYVal.textContent = String(ViewportScale.tune.offsetY ?? 0);
             if (tuneWidth) tuneWidth.value = String(ViewportScale.tune.widthPct ?? 100);
             if (tuneWidthVal) tuneWidthVal.textContent = `${ViewportScale.tune.widthPct ?? 100}%`;
+            if (tuneHeight) tuneHeight.value = String(ViewportScale.tune.heightPct ?? 100);
+            if (tuneHeightVal) tuneHeightVal.textContent = `${ViewportScale.tune.heightPct ?? 100}%`;
         };
         const close = () => { panel.classList.remove('open'); panel.setAttribute('aria-hidden', 'true'); };
         const toggle= () => { panel.classList.contains('open') ? close() : open(); };
@@ -358,14 +371,17 @@ const FiltersUI = {
                 scalePct: tuneScale ? Number(tuneScale.value) : ViewportScale.tune.scalePct,
                 offsetY: tuneOffsetY ? Number(tuneOffsetY.value) : ViewportScale.tune.offsetY,
                 widthPct: tuneWidth ? Number(tuneWidth.value) : ViewportScale.tune.widthPct,
+                heightPct: tuneHeight ? Number(tuneHeight.value) : ViewportScale.tune.heightPct,
             });
             if (tuneScaleVal) tuneScaleVal.textContent = `${ViewportScale.tune.scalePct}%`;
             if (tuneOffsetYVal) tuneOffsetYVal.textContent = String(ViewportScale.tune.offsetY);
             if (tuneWidthVal) tuneWidthVal.textContent = `${ViewportScale.tune.widthPct}%`;
+            if (tuneHeightVal) tuneHeightVal.textContent = `${ViewportScale.tune.heightPct}%`;
         };
         if (tuneScale) tuneScale.oninput = applyTune;
         if (tuneOffsetY) tuneOffsetY.oninput = applyTune;
         if (tuneWidth) tuneWidth.oninput = applyTune;
+        if (tuneHeight) tuneHeight.oninput = applyTune;
 
         window.addEventListener('keydown', (e) => {
             const key = String(e.key || '').toLowerCase();
@@ -952,9 +968,10 @@ function renderRegions(total) {
 
 // Vehicle list paging
 let vPages=[], vPage=0, vTimer=null;
+let lPages=[], lPage=0, lTimer=null;
 
 function renderVehicles(vehicles) {
-    const PER=15;
+    const PER = document.body.classList.contains('presentation-mode') ? 7 : 15;
     const sorted=[...vehicles].reverse(); // mais recentes primeiro
     vPages=[];
     for(let i=0;i<sorted.length;i+=PER) vPages.push(sorted.slice(i,i+PER));
@@ -989,12 +1006,45 @@ function showVPage(idx) {
 }
 
 function renderTopLocals() {
-    const sorted=Object.entries(localMap).sort((a,b)=>b[1]-a[1]).slice(0,8);
     const el=document.getElementById('llist');
-    if(!sorted.length){el.innerHTML='<div class="nodata" style="height:70px;">—</div>';return;}
-    const max=sorted[0][1];
+    const sortedAll=Object.entries(localMap).sort((a,b)=>b[1]-a[1]);
+    if(!sortedAll.length){
+        el.innerHTML='<div class="nodata" style="height:70px;">—</div>';
+        if (lTimer) { clearInterval(lTimer); lTimer = null; }
+        return;
+    }
+
+    const isPresentation = document.body.classList.contains('presentation-mode');
+    if (!isPresentation) {
+        if (lTimer) { clearInterval(lTimer); lTimer = null; }
+        lPages = [sortedAll.slice(0, 8)];
+        lPage = 0;
+        showLPage(0);
+        return;
+    }
+
+    const PER = 5;
+    lPages = [];
+    for (let i = 0; i < sortedAll.length; i += PER) lPages.push(sortedAll.slice(i, i + PER));
+    lPage = 0;
+    showLPage(0);
+    if (lTimer) clearInterval(lTimer);
+    if (lPages.length > 1) {
+        lTimer = setInterval(() => {
+            lPage = (lPage + 1) % lPages.length;
+            showLPage(lPage);
+        }, 5000);
+    }
+}
+
+function showLPage(idx) {
+    lPage=idx;
+    const el=document.getElementById('llist');
+    const page=lPages[idx]||[];
+    if(!page.length){el.innerHTML='<div class="nodata" style="height:70px;">—</div>';return;}
+    const max=Math.max(...page.map(([,cnt])=>Number(cnt)||0),1);
     el.innerHTML='';
-    sorted.forEach(([local,cnt])=>{
+    page.forEach(([local,cnt])=>{
         const pct=(cnt/max*100).toFixed(0);
         const uf=extractUF(local);
         const rc=REGION_COLOR[UF_REGION[uf]||'Sudeste'];
@@ -1320,12 +1370,191 @@ async function tryLoadFromSupabase() {
     }
 }
 
+const PresentationMapa = {
+    storageKey: 'AVANTRAX_PRESENTATION_MODE',
+    enabled: false,
+    paused: false,
+    groupIndex: 0,
+    rotateMs: 15000,
+    timer: 0,
+    cardMap: {},
+    groups: [
+        { label: 'A · Resumo + Top estados', cards: ['resumo', 'top-estados'] },
+        { label: 'B · Top países + Regiões', cards: ['top-paises', 'regioes'] },
+        { label: 'C · Faturados + Top locais', cards: ['veiculos-faturados', 'top-locais'] },
+    ],
+    _boundKey: null,
+
+    init() {
+        this.captureCards();
+        this.bindButton();
+        this.bindKeys();
+        if (this.readPersisted()) this.enable();
+        else this.updateBadge();
+    },
+
+    captureCards() {
+        const all = Array.from(document.querySelectorAll('[data-presentation-card]'));
+        this.cardMap = {};
+        all.forEach((el) => { this.cardMap[el.dataset.presentationCard] = el; });
+    },
+
+    bindButton() {
+        const btn = document.getElementById('presentation-toggle-btn');
+        if (!btn) return;
+        btn.addEventListener('click', () => this.toggle());
+    },
+
+    bindKeys() {
+        if (this._boundKey) return;
+        this._boundKey = (e) => {
+            const key = String(e.key || '').toLowerCase();
+            const tag = String(e.target?.tagName || '').toLowerCase();
+            const isInput = tag === 'input' || tag === 'textarea' || tag === 'select';
+
+            if (key === 'f2') {
+                e.preventDefault();
+                this.toggle();
+                return;
+            }
+            if (!this.enabled) return;
+            if (key === 'escape') {
+                e.preventDefault();
+                this.disable();
+                return;
+            }
+            if (key === 'arrowright') {
+                e.preventDefault();
+                this.nextGroup(true);
+                return;
+            }
+            if (key === 'arrowleft') {
+                e.preventDefault();
+                this.prevGroup(true);
+                return;
+            }
+            if (key === ' ' && !isInput) {
+                e.preventDefault();
+                this.togglePause();
+            }
+        };
+        window.addEventListener('keydown', this._boundKey, true);
+    },
+
+    readPersisted() {
+        try { return localStorage.getItem(this.storageKey) === '1'; } catch (_) { return false; }
+    },
+
+    persist(value) {
+        try { localStorage.setItem(this.storageKey, value ? '1' : '0'); } catch (_) {}
+    },
+
+    toggle() {
+        if (this.enabled) this.disable();
+        else this.enable();
+    },
+
+    enable() {
+        this.captureCards();
+        this.enabled = true;
+        this.paused = false;
+        document.body.classList.add('presentation-mode');
+        document.documentElement.classList.add('presentation-mode-root');
+        try { ViewportScale.apply(); } catch (_) {}
+        if (lastInventarioRows) renderDashboard(lastInventarioRows);
+        this.applyGroup();
+        this.startTimer();
+        this.persist(true);
+        this.updateBadge();
+    },
+
+    disable() {
+        this.enabled = false;
+        this.paused = false;
+        this.stopTimer();
+        document.body.classList.remove('presentation-mode');
+        document.documentElement.classList.remove('presentation-mode-root');
+        try { ViewportScale.apply(); } catch (_) {}
+        if (lastInventarioRows) renderDashboard(lastInventarioRows);
+        this.clearClasses();
+        this.persist(false);
+        this.updateBadge();
+    },
+
+    clearClasses() {
+        Object.values(this.cardMap).forEach((card) => {
+            if (!card) return;
+            card.classList.remove('presentation-slot-a', 'presentation-slot-b');
+        });
+    },
+
+    applyGroup() {
+        this.clearClasses();
+        if (!this.enabled) return;
+        const g = this.groups[this.groupIndex] || this.groups[0];
+        const a = this.cardMap[g.cards[0]];
+        const b = this.cardMap[g.cards[1]];
+        if (a) a.classList.add('presentation-slot-a');
+        if (b) b.classList.add('presentation-slot-b');
+        this.updateBadge();
+    },
+
+    startTimer() {
+        this.stopTimer();
+        this.timer = setInterval(() => {
+            if (!this.enabled || this.paused) return;
+            this.nextGroup(false);
+        }, this.rotateMs);
+    },
+
+    stopTimer() {
+        if (!this.timer) return;
+        clearInterval(this.timer);
+        this.timer = 0;
+    },
+
+    togglePause() {
+        if (!this.enabled) return;
+        this.paused = !this.paused;
+        this.updateBadge();
+    },
+
+    nextGroup(fromKeyboard) {
+        if (!this.enabled) return;
+        this.groupIndex = (this.groupIndex + 1) % this.groups.length;
+        this.applyGroup();
+        if (fromKeyboard) this.updateBadge();
+    },
+
+    prevGroup(fromKeyboard) {
+        if (!this.enabled) return;
+        this.groupIndex = (this.groupIndex - 1 + this.groups.length) % this.groups.length;
+        this.applyGroup();
+        if (fromKeyboard) this.updateBadge();
+    },
+
+    updateBadge() {
+        const btn = document.getElementById('presentation-toggle-btn');
+        const lbl = document.getElementById('presentation-group-label');
+        if (btn) {
+            const pause = this.enabled && this.paused ? ' • Pausado' : '';
+            btn.textContent = this.enabled ? `Apresentação${pause}` : 'Apresentação';
+        }
+        if (lbl) {
+            if (!this.enabled) { lbl.textContent = ''; return; }
+            const g = this.groups[this.groupIndex] || this.groups[0];
+            lbl.textContent = `${g.label} · 15s`;
+        }
+    },
+};
+
 // INIT
 // ════════════════════════════════════════════════════════════════
 window.addEventListener('load', async () => {
     initParticles();
     ViewportScale.apply();
     startClock();
+    PresentationMapa.init();
 
     if (TV_MODE) {
         const overlay = document.getElementById('upload-overlay');

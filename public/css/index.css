@@ -712,4 +712,617 @@
             text-transform: uppercase;
             letter-spacing: 0.8px;
         }
+
+        .presentation-controls {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 6px;
+        }
+
+        .presentation-toggle-btn {
+            border: 1px solid rgba(0, 191, 255, 0.35);
+            background: rgba(0, 191, 255, 0.12);
+            color: #EAF7FF;
+            border-radius: 999px;
+            padding: 8px 14px;
+            font-size: 0.72rem;
+            font-weight: 800;
+            letter-spacing: 0.8px;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: all 0.25s ease;
+        }
+
+        .presentation-toggle-btn:hover {
+            transform: translateY(-1px);
+            border-color: rgba(0, 191, 255, 0.55);
+            box-shadow: 0 0 18px rgba(0, 191, 255, 0.18);
+        }
+        body.presentation-mode .presentation-toggle-btn {
+            border-color: rgba(148, 163, 184, 0.22);
+            background: rgba(15, 23, 42, 0.36);
+            color: rgba(203, 213, 225, 0.78);
+            box-shadow: none;
+            font-size: 0.64rem;
+            letter-spacing: 0.4px;
+            padding: 6px 11px;
+        }
+        body.presentation-mode .presentation-toggle-btn:hover {
+            transform: none;
+            border-color: rgba(148, 163, 184, 0.28);
+            box-shadow: none;
+        }
+
+        .presentation-group-label {
+            font-size: 0.62rem;
+            color: var(--text-dim);
+            font-family: 'JetBrains Mono', monospace;
+            min-height: 0.9rem;
+        }
+
+        .presentation-summary { display: none; }
+
+        body.presentation-mode .status-badges {
+            opacity: 0.25;
+        }
+
+        body.presentation-mode #dashboard {
+            padding: 14px;
+            gap: 14px;
+        }
+
+        body.presentation-mode header {
+            padding: 10px 14px;
+        }
+
+        body.presentation-mode .kpi-container {
+            display: none;
+        }
+
+        body.presentation-mode .main-grid {
+            position: relative;
+            display: block;
+            height: 100% !important;
+            min-height: 0;
+        }
+
+        body.presentation-mode .main-grid .column {
+            display: block;
+        }
+
+        body.presentation-mode .main-grid .card {
+            display: none !important;
+            position: absolute;
+            opacity: 0;
+            transform: translateY(12px);
+            transition: opacity .5s ease, transform .5s ease;
+            overflow: hidden;
+        }
+
+        body.presentation-mode .main-grid .card.presentation-left,
+        body.presentation-mode .main-grid .card.presentation-slot-a,
+        body.presentation-mode .main-grid .card.presentation-slot-b {
+            display: flex !important;
+            flex-direction: column;
+            align-items: stretch;
+            justify-content: flex-start;
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        body.presentation-mode .main-grid .card.presentation-left {
+            left: 0 !important;
+            top: 0 !important;
+            width: calc(35% - 10px) !important;
+            height: 100% !important;
+            padding: 22px;
+            gap: 12px;
+            border-color: rgba(0, 191, 255, 0.24);
+            box-shadow: 0 22px 70px rgba(0, 0, 0, 0.34);
+        }
+
+        body.presentation-mode .main-grid .card.presentation-slot-a,
+        body.presentation-mode .main-grid .card.presentation-slot-b {
+            left: calc(35% + 10px) !important;
+            width: calc(65% - 10px) !important;
+            border-color: rgba(0, 191, 255, 0.2);
+            box-shadow: 0 18px 58px rgba(0, 0, 0, 0.3);
+            padding: 22px;
+        }
+
+        body.presentation-mode .main-grid .card.presentation-slot-a {
+            top: 0 !important;
+            height: calc(50% - 8px) !important;
+        }
+
+        body.presentation-mode .main-grid .card.presentation-slot-b {
+            top: calc(50% + 8px) !important;
+            height: calc(50% - 8px) !important;
+        }
+
+        body.presentation-mode .main-grid .card .card-title {
+            font-size: 1.08rem;
+            letter-spacing: 1.4px;
+        }
+
+        body.presentation-mode .main-grid .card.presentation-slot-a,
+        body.presentation-mode .main-grid .card.presentation-slot-b,
+        body.presentation-mode .main-grid .card.presentation-left {
+            font-size: 1.08rem;
+        }
+
+        body.presentation-mode .main-grid .card .card-header {
+            margin-bottom: 18px;
+            padding-bottom: 14px;
+        }
+
+        body.presentation-mode .main-grid .card.presentation-slot-a > :not(.card-header),
+        body.presentation-mode .main-grid .card.presentation-slot-b > :not(.card-header) {
+            flex: 1 1 auto;
+            min-height: 0;
+        }
+
+        body.presentation-mode .big-number-label {
+            font-size: 1.08rem;
+            margin-bottom: 12px;
+        }
+
+        body.presentation-mode .big-number {
+            font-size: clamp(5.2rem, 7vw, 8.4rem);
+            margin-bottom: 16px;
+        }
+
+        body.presentation-mode [data-presentation-card="center-total"] > img {
+            display: block;
+            align-self: center;
+            margin: 2px auto 8px !important;
+            width: 248px !important;
+            max-width: 82% !important;
+            height: auto;
+        }
+
+        body.presentation-mode #center-weather-panel {
+            display: flex !important;
+        }
+
+        body.presentation-mode #dep-breakdown {
+            width: 100%;
+            gap: 14px;
+            margin-top: 8px;
+        }
+
+        body.presentation-mode #dep-breakdown .dep-label,
+        body.presentation-mode #dep-breakdown .dep-val {
+            font-size: 1rem;
+            font-weight: 800;
+        }
+
+        body.presentation-mode #dep-breakdown .dep-track {
+            height: 12px;
+        }
+
+        body.presentation-mode .presentation-summary {
+            display: flex;
+            width: 100%;
+            flex-direction: column;
+            gap: 8px;
+            margin-top: 10px;
+            padding: 12px;
+            border-radius: 14px;
+            border: 1px solid rgba(0, 191, 255, 0.2);
+            background: rgba(0, 191, 255, 0.08);
+        }
+
+        body.presentation-mode .presentation-summary-title {
+            font-size: 0.86rem;
+            font-weight: 800;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            color: var(--accent-cyan);
+        }
+
+        body.presentation-mode .presentation-summary-cards {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        body.presentation-mode .presentation-summary-card {
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,.08);
+            background: rgba(255,255,255,.03);
+            padding: 10px 10px 9px;
+            min-height: 84px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            gap: 6px;
+            text-align: center;
+        }
+
+        body.presentation-mode .presentation-summary-card .psc-label {
+            font-size: 0.68rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #AFC0D9;
+        }
+
+        body.presentation-mode .presentation-summary-card .psc-value {
+            font-size: 1.85rem;
+            color: #EAF7FF;
+            font-weight: 900;
+            font-family: 'JetBrains Mono', monospace;
+            letter-spacing: 0.4px;
+            line-height: 1;
+        }
+
+        body.presentation-mode .presentation-summary-card.is-green {
+            border-color: rgba(16,185,129,.35);
+            background: linear-gradient(180deg, rgba(16,185,129,.16), rgba(16,185,129,.06));
+            box-shadow: inset 0 0 20px rgba(16,185,129,.08);
+        }
+        body.presentation-mode .presentation-summary-card.is-green .psc-value {
+            color: #34D399;
+            text-shadow: 0 0 14px rgba(16,185,129,.28);
+        }
+
+        body.presentation-mode .presentation-summary-card.is-blue {
+            border-color: rgba(0,191,255,.35);
+            background: linear-gradient(180deg, rgba(0,191,255,.16), rgba(0,191,255,.06));
+            box-shadow: inset 0 0 20px rgba(0,191,255,.08);
+        }
+        body.presentation-mode .presentation-summary-card.is-blue .psc-value {
+            color: #2BC7FF;
+            text-shadow: 0 0 14px rgba(0,191,255,.28);
+        }
+
+        /* Dashboard presentation: readability per card */
+        body.presentation-mode [data-presentation-card="veiculos-criticos"] .card-header {
+            margin-bottom: 14px;
+        }
+        body.presentation-mode [data-presentation-card="veiculos-criticos"] .card-header .card-title {
+            font-size: 1.24rem;
+        }
+        body.presentation-mode [data-presentation-card="veiculos-criticos"] #presentation-criticos-value {
+            font-size: clamp(6.8rem, 8.2vw, 9.4rem) !important;
+            line-height: 0.95 !important;
+        }
+        body.presentation-mode [data-presentation-card="veiculos-criticos"] #presentation-criticos-value + div {
+            font-size: 1.12rem !important;
+            letter-spacing: 1.4px !important;
+            text-align: center;
+            color: #A9B9D3 !important;
+        }
+
+        body.presentation-mode [data-presentation-card="status-fat"] .fat-wrapper {
+            gap: 22px;
+        }
+        body.presentation-mode [data-presentation-card="status-fat"] .fat-donut-area {
+            width: 182px;
+            height: 182px;
+        }
+        body.presentation-mode [data-presentation-card="status-fat"] .fat-donut-area canvas {
+            width: 182px !important;
+            height: 182px !important;
+        }
+        body.presentation-mode [data-presentation-card="status-fat"] .fat-center-pct {
+            font-size: 2.25rem;
+        }
+        body.presentation-mode [data-presentation-card="status-fat"] .fat-center-lbl {
+            font-size: 0.72rem;
+        }
+        body.presentation-mode [data-presentation-card="status-fat"] .fat-row-label {
+            font-size: 0.88rem;
+        }
+        body.presentation-mode [data-presentation-card="status-fat"] .fat-num {
+            font-size: 1.95rem;
+            line-height: 1;
+        }
+        body.presentation-mode [data-presentation-card="status-fat"] .fat-sub {
+            font-size: 0.76rem;
+            color: #7F92B1;
+        }
+        body.presentation-mode [data-presentation-card="status-fat"] .fat-bar-track {
+            height: 4px;
+        }
+        body.presentation-mode [data-presentation-card="status-fat"] .fat-today {
+            margin-top: 12px;
+            padding-top: 12px;
+        }
+        body.presentation-mode [data-presentation-card="status-fat"] .fat-today-icon {
+            width: 34px;
+            height: 34px;
+            font-size: 1rem;
+        }
+        body.presentation-mode [data-presentation-card="status-fat"] .fat-today-val {
+            font-size: 1.6rem;
+            letter-spacing: 0.3px;
+        }
+        body.presentation-mode [data-presentation-card="status-fat"] .fat-today-lbl {
+            font-size: 0.78rem;
+            letter-spacing: 1px;
+            color: #9FB1CC;
+        }
+
+        body.presentation-mode [data-presentation-card="bloqueados"] #bloq-motivos > div {
+            font-size: 0.78rem !important;
+            padding: 5px 11px !important;
+        }
+        body.presentation-mode [data-presentation-card="bloqueados"] #bloq-motivos {
+            display: grid !important;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 6px !important;
+            margin-bottom: 6px !important;
+            max-height: 56px;
+            overflow: hidden;
+            align-items: stretch;
+        }
+        body.presentation-mode [data-presentation-card="bloqueados"] #bloq-motivos > div {
+            width: 100% !important;
+            min-width: 0;
+            max-width: 100% !important;
+            min-height: 24px;
+            font-size: 0.66rem !important;
+            padding: 3px 8px !important;
+            border-radius: 10px !important;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        body.presentation-mode [data-presentation-card="bloqueados"] {
+            display: grid !important;
+            grid-template-rows: auto auto 1fr auto;
+            align-content: stretch;
+            min-height: 0;
+        }
+        body.presentation-mode [data-presentation-card="bloqueados"] #bloq-grid {
+            gap: 8px !important;
+            min-height: 0;
+            overflow: hidden;
+        }
+        body.presentation-mode [data-presentation-card="bloqueados"] #bloq-grid > div {
+            border-radius: 12px !important;
+            padding: 9px 11px !important;
+            gap: 6px !important;
+        }
+        body.presentation-mode [data-presentation-card="bloqueados"] #bloq-grid > div > div:first-child > div:first-child {
+            font-size: 0.9rem !important;
+        }
+        body.presentation-mode [data-presentation-card="bloqueados"] #bloq-grid > div > div:first-child > div:last-child > div:first-child {
+            font-size: 1.28rem !important;
+        }
+        body.presentation-mode [data-presentation-card="bloqueados"] #bloq-grid > div > div:first-child > div:last-child > div:last-child {
+            font-size: 0.62rem !important;
+        }
+        body.presentation-mode [data-presentation-card="bloqueados"] #bloq-grid > div > div:nth-child(2) {
+            font-size: 0.76rem !important;
+            color: #8EA4C4 !important;
+        }
+        body.presentation-mode [data-presentation-card="bloqueados"] #bloq-grid > div > div:last-child span:last-child {
+            font-size: 0.72rem !important;
+        }
+        body.presentation-mode [data-presentation-card="bloqueados"] #bloq-page-info {
+            font-size: 0.86rem !important;
+        }
+        body.presentation-mode [data-presentation-card="bloqueados"] #bloq-pagination {
+            margin-top: 10px !important;
+            padding-top: 8px;
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+            position: relative;
+            z-index: 2;
+            flex-shrink: 0;
+        }
+        body.presentation-mode [data-presentation-card="bloqueados"] #bloq-pagination {
+            display: none !important;
+        }
+        body.presentation-mode [data-presentation-card="bloqueados"] #bloq-prev,
+        body.presentation-mode [data-presentation-card="bloqueados"] #bloq-next {
+            font-size: 0.78rem !important;
+            padding: 6px 12px !important;
+        }
+        body.presentation-mode [data-presentation-card="bloqueados"] #bloq-prev,
+        body.presentation-mode [data-presentation-card="bloqueados"] #bloq-next {
+            display: none !important;
+        }
+
+        body.presentation-mode [data-presentation-card="aging-patio"] #aging-bands > div,
+        body.presentation-mode [data-presentation-card="aging-embarcados"] #emb-aging-bands > div {
+            gap: 14px !important;
+        }
+        body.presentation-mode [data-presentation-card="aging-patio"] #aging-bands > div > div:first-child,
+        body.presentation-mode [data-presentation-card="aging-embarcados"] #emb-aging-bands > div > div:first-child {
+            width: 106px !important;
+        }
+        body.presentation-mode [data-presentation-card="aging-patio"] #aging-bands > div > div:first-child > div:first-child,
+        body.presentation-mode [data-presentation-card="aging-embarcados"] #emb-aging-bands > div > div:first-child > div:first-child {
+            font-size: 0.95rem !important;
+        }
+        body.presentation-mode [data-presentation-card="aging-patio"] #aging-bands > div > div:first-child > div:last-child,
+        body.presentation-mode [data-presentation-card="aging-embarcados"] #emb-aging-bands > div > div:first-child > div:last-child {
+            font-size: 0.72rem !important;
+        }
+        body.presentation-mode [data-presentation-card="aging-patio"] #aging-bands > div > div:nth-child(2) > div,
+        body.presentation-mode [data-presentation-card="aging-embarcados"] #emb-aging-bands > div > div:nth-child(2) > div {
+            height: 18px !important;
+        }
+        body.presentation-mode [data-presentation-card="aging-patio"] #aging-bands > div > div:last-child,
+        body.presentation-mode [data-presentation-card="aging-embarcados"] #emb-aging-bands > div > div:last-child {
+            width: 110px !important;
+        }
+        body.presentation-mode [data-presentation-card="aging-patio"] #aging-bands > div > div:last-child > span:first-child,
+        body.presentation-mode [data-presentation-card="aging-embarcados"] #emb-aging-bands > div > div:last-child > span:first-child {
+            font-size: 1.34rem !important;
+            line-height: 1 !important;
+        }
+        body.presentation-mode [data-presentation-card="aging-patio"] #aging-bands > div > div:last-child > span:last-child,
+        body.presentation-mode [data-presentation-card="aging-embarcados"] #emb-aging-bands > div > div:last-child > span:last-child {
+            font-size: 0.82rem !important;
+        }
+        body.presentation-mode [data-presentation-card="aging-patio"] #aging-footer > div,
+        body.presentation-mode [data-presentation-card="aging-embarcados"] #emb-aging-footer > div {
+            padding: 4px 5px !important;
+        }
+        body.presentation-mode [data-presentation-card="aging-patio"] #aging-footer > div > div:first-child,
+        body.presentation-mode [data-presentation-card="aging-embarcados"] #emb-aging-footer > div > div:first-child {
+            font-size: 0.92rem !important;
+        }
+        body.presentation-mode [data-presentation-card="aging-patio"] #aging-footer > div > div:last-child,
+        body.presentation-mode [data-presentation-card="aging-embarcados"] #emb-aging-footer > div > div:last-child {
+            font-size: 0.56rem !important;
+        }
+        body.presentation-mode [data-presentation-card="aging-patio"] #aging-footer,
+        body.presentation-mode [data-presentation-card="aging-embarcados"] #emb-aging-footer {
+            margin-top: 6px !important;
+            padding-top: 6px !important;
+            gap: 6px !important;
+            flex-shrink: 0;
+        }
+
+        body.presentation-mode [data-presentation-card="top-modelos"] #modelos-list > div {
+            gap: 12px !important;
+        }
+        body.presentation-mode [data-presentation-card="top-modelos"] #modelos-list > div > div:first-child {
+            width: 24px !important;
+            font-size: 0.98rem !important;
+        }
+        body.presentation-mode [data-presentation-card="top-modelos"] #modelos-list > div > div:nth-child(2) > div:first-child > span:first-child {
+            font-size: 0.98rem !important;
+            max-width: 330px !important;
+        }
+        body.presentation-mode [data-presentation-card="top-modelos"] #modelos-list > div > div:nth-child(2) > div:first-child > span:last-child {
+            font-size: 1.02rem !important;
+        }
+        body.presentation-mode [data-presentation-card="top-modelos"] #modelos-list > div > div:nth-child(2) > div:last-child {
+            height: 8px !important;
+        }
+        body.presentation-mode [data-presentation-card="top-modelos"] #modelos-list > div > div:last-child {
+            width: 56px !important;
+            font-size: 0.86rem !important;
+        }
+
+        body.presentation-mode [data-presentation-card="top-transportadoras"] #transp-list {
+            gap: 10px !important;
+        }
+        body.presentation-mode [data-presentation-card="top-transportadoras"] #transp-list > div {
+            gap: 12px !important;
+        }
+        body.presentation-mode [data-presentation-card="top-transportadoras"] #transp-list > div > div:first-child {
+            width: 24px !important;
+            font-size: 1rem !important;
+        }
+        body.presentation-mode [data-presentation-card="top-transportadoras"] #transp-list > div > div:nth-child(2) > div:first-child > span:first-child {
+            font-size: 0.96rem !important;
+            max-width: 320px !important;
+        }
+        body.presentation-mode [data-presentation-card="top-transportadoras"] #transp-list > div > div:nth-child(2) > div:first-child > span:last-child {
+            font-size: 1.08rem !important;
+        }
+        body.presentation-mode [data-presentation-card="top-transportadoras"] #transp-list > div > div:nth-child(2) > div:last-child {
+            height: 8px !important;
+        }
+        body.presentation-mode [data-presentation-card="top-transportadoras"] #transp-list > div > div:last-child {
+            width: 54px !important;
+            font-size: 0.86rem !important;
+            color: #8DA6C7 !important;
+        }
+
+        body.presentation-mode [data-presentation-card="tp-venda"] .card-header + div {
+            gap: 22px !important;
+        }
+        body.presentation-mode [data-presentation-card="tp-venda"] .card-header + div > div:first-child {
+            width: 146px !important;
+            height: 146px !important;
+            flex-shrink: 0;
+        }
+        body.presentation-mode [data-presentation-card="tp-venda"] #chart-tp-venda {
+            width: 146px !important;
+            height: 146px !important;
+        }
+        body.presentation-mode [data-presentation-card="tp-venda"] #tp-donut-val {
+            font-size: 1.68rem !important;
+        }
+        body.presentation-mode [data-presentation-card="tp-venda"] #tp-donut-lbl {
+            font-size: 0.68rem !important;
+            letter-spacing: 1px !important;
+        }
+        body.presentation-mode [data-presentation-card="tp-venda"] #tp-vd-num,
+        body.presentation-mode [data-presentation-card="tp-venda"] #tp-td-num,
+        body.presentation-mode [data-presentation-card="tp-venda"] #tp-pdi-num {
+            font-size: 1.34rem !important;
+            line-height: 1.05 !important;
+            font-weight: 900 !important;
+            min-width: 62px;
+            text-align: right;
+            letter-spacing: 0.2px;
+            font-family: 'JetBrains Mono', monospace !important;
+            font-variant-numeric: tabular-nums;
+            text-shadow: 0 0 10px rgba(0, 191, 255, 0.18);
+            margin-left: 8px;
+            flex-shrink: 0;
+        }
+        body.presentation-mode [data-presentation-card="tp-venda"] .card-header + div > div:nth-child(2) > div {
+            gap: 6px !important;
+        }
+        body.presentation-mode [data-presentation-card="tp-venda"] .card-header + div > div:nth-child(2) > div > div:first-child > span:first-child {
+            font-size: 0.98rem !important;
+            color: #D9E7F9 !important;
+            font-weight: 800 !important;
+            letter-spacing: 1px !important;
+        }
+        body.presentation-mode [data-presentation-card="tp-venda"] #tp-vd-pct,
+        body.presentation-mode [data-presentation-card="tp-venda"] #tp-td-pct,
+        body.presentation-mode [data-presentation-card="tp-venda"] #tp-pdi-pct {
+            font-size: 0.84rem !important;
+        }
+        body.presentation-mode [data-presentation-card="tp-venda"] #tp-vd-bar,
+        body.presentation-mode [data-presentation-card="tp-venda"] #tp-td-bar,
+        body.presentation-mode [data-presentation-card="tp-venda"] #tp-pdi-bar {
+            height: 100%;
+        }
+        body.presentation-mode [data-presentation-card="tp-venda"] #tp-footer > div {
+            padding: 4px 4px !important;
+        }
+        body.presentation-mode [data-presentation-card="tp-venda"] #tp-footer > div > div:first-child {
+            font-size: 0.84rem !important;
+        }
+        body.presentation-mode [data-presentation-card="tp-venda"] #tp-footer > div > div:nth-child(2) {
+            font-size: 0.52rem !important;
+        }
+        body.presentation-mode [data-presentation-card="tp-venda"] #tp-footer > div > div:nth-child(3) {
+            font-size: 0.62rem !important;
+        }
+        body.presentation-mode [data-presentation-card="tp-venda"] #tp-footer {
+            margin-top: 6px !important;
+            padding-top: 6px !important;
+            gap: 6px !important;
+            flex-shrink: 0;
+        }
+
+        /* Presentation mode: hide bottom total cards to improve spacing/readability */
+        body.presentation-mode [data-presentation-card="tp-venda"] #tp-footer,
+        body.presentation-mode [data-presentation-card="aging-patio"] #aging-footer,
+        body.presentation-mode [data-presentation-card="aging-embarcados"] #emb-aging-footer {
+            display: none !important;
+        }
+
+        body.presentation-mode [data-presentation-card="tp-venda"] .card-header + div {
+            margin-top: 4px;
+            min-height: 0;
+            align-items: center !important;
+        }
+
+        body.presentation-mode [data-presentation-card="aging-patio"] #aging-bands,
+        body.presentation-mode [data-presentation-card="aging-embarcados"] #emb-aging-bands {
+            justify-content: space-evenly !important;
+            gap: 10px !important;
+            padding-top: 2px;
+            padding-bottom: 4px;
+            min-height: 0;
+        }
+
+        html.presentation-mode-root {
+            font-size: 19px;
+        }
     

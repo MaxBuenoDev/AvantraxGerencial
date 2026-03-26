@@ -52,6 +52,13 @@
                 <div style="width:52px; text-align:right; font-family:'JetBrains Mono', monospace;" id="tune-width-val">100%</div>
             </div>
         </div>
+        <div class="filter-row" id="tune-row-height">
+            <div class="filter-label">Comprimento</div>
+            <div style="display:flex; gap:10px; align-items:center;">
+                <input class="filter-select" id="tune-height" type="range" min="80" max="130" step="1" value="100" style="padding: 8px 10px;">
+                <div style="width:52px; text-align:right; font-family:'JetBrains Mono', monospace;" id="tune-height-val">100%</div>
+            </div>
+        </div>
     </div>
     <div class="filters-actions">
         <button class="filters-btn" id="filters-clear" type="button">LIMPAR</button>
@@ -95,6 +102,10 @@
         </div>
         <div class="hbadge"><div class="dot"></div>INVENTÁRIO · DISTRIBUIÇÃO GEOGRÁFICA</div>
         <div style="display:flex;align-items:center;gap:18px;">
+            <div class="presentation-controls">
+                <button class="presentation-toggle-btn" id="presentation-toggle-btn" type="button">Modo apresentação: OFF</button>
+                <div class="presentation-group-label" id="presentation-group-label"></div>
+            </div>
             <div class="cdown">
                 <span>Dashboard em:</span>
                 <div class="cbar-wrap"><div class="cbar" id="cbar" style="width:100%"></div></div>
@@ -111,7 +122,7 @@
 
         <!-- LEFT -->
         <div class="lcol">
-            <div class="card" style="padding:14px;">
+            <div class="card" data-presentation-card="resumo" style="padding:14px;">
                 <div class="ct">📦 Resumo</div>
                 <div class="kgrid">
                     <div class="kmi"><div class="kml">Faturados</div><div class="kmv c" id="k-fat">0</div></div>
@@ -120,19 +131,19 @@
                     <div class="kmi"><div class="kml">Locais</div><div class="kmv" id="k-loc">0</div></div>
                 </div>
             </div>
-            <div class="card" style="flex:1;display:flex;flex-direction:column;">
+            <div class="card" data-presentation-card="top-estados" style="flex:1;display:flex;flex-direction:column;">
                 <div class="ct">🏆 Top Estados</div>
                 <div id="top-states" style="flex:1;overflow:hidden;">
                     <div class="nodata"><span>📊</span>Aguardando...</div>
                 </div>
             </div>
-            <div class="card" style="height:220px;display:flex;flex-direction:column;">
+            <div class="card" data-presentation-card="top-paises" style="height:220px;display:flex;flex-direction:column;">
                 <div class="ct">🌍 Top Países</div>
                 <div id="top-countries" style="flex:1;overflow:hidden;">
                     <div class="nodata"><span>📊</span>Aguardando...</div>
                 </div>
             </div>
-            <div class="card">
+            <div class="card" data-presentation-card="regioes">
                 <div class="ct">🗂️ Regiões</div>
                 <div id="region-bars"><div class="nodata" style="height:70px;">—</div></div>
             </div>
@@ -158,7 +169,7 @@
 
         <!-- RIGHT -->
         <div class="rcol">
-            <div class="card" style="flex:1;display:flex;flex-direction:column;">
+            <div class="card" data-presentation-card="veiculos-faturados" style="flex:1;display:flex;flex-direction:column;">
                 <div class="ct" style="margin-bottom:8px;">
                     🚗 Veículos Faturados
                     <span id="vbadge" style="margin-left:auto;font-size:.58rem;padding:2px 7px;border-radius:9px;
@@ -168,7 +179,7 @@
                 <div class="vlist" id="vlist"><div class="nodata"><span>🚗</span>Sem dados</div></div>
                 <div class="pdots" id="pdots"></div>
             </div>
-            <div class="card">
+            <div class="card" data-presentation-card="top-locais">
                 <div class="ct">📍 Top Locais de Entrega</div>
                 <div id="llist"><div class="nodata" style="height:70px;">—</div></div>
             </div>

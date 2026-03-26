@@ -320,7 +320,7 @@
             designHeight: 1080,
             _pendingRaf: 0,
             tuneKey: 'avantrax.viewport.tune.v1',
-            tune: { scalePct: 100, offsetY: 0, widthPct: 100 },
+            tune: { scalePct: 100, offsetY: 0, widthPct: 100, heightPct: 100 },
 
             loadTune() {
                 try {
@@ -331,9 +331,11 @@
                     const scalePct = Number(parsed.scalePct);
                     const offsetY = Number(parsed.offsetY);
                     const widthPct = Number(parsed.widthPct);
+                    const heightPct = Number(parsed.heightPct);
                     if (Number.isFinite(scalePct)) this.tune.scalePct = Math.min(100, Math.max(80, Math.round(scalePct)));
                     if (Number.isFinite(offsetY)) this.tune.offsetY = Math.min(180, Math.max(-180, Math.round(offsetY)));
                     if (Number.isFinite(widthPct)) this.tune.widthPct = Math.min(120, Math.max(80, Math.round(widthPct)));
+                    if (Number.isFinite(heightPct)) this.tune.heightPct = Math.min(130, Math.max(80, Math.round(heightPct)));
                 } catch (_) {}
             },
 
@@ -354,6 +356,10 @@
                     if (next.widthPct !== undefined) {
                         const v = Number(next.widthPct);
                         if (Number.isFinite(v)) this.tune.widthPct = Math.min(120, Math.max(80, Math.round(v)));
+                    }
+                    if (next.heightPct !== undefined) {
+                        const v = Number(next.heightPct);
+                        if (Number.isFinite(v)) this.tune.heightPct = Math.min(130, Math.max(80, Math.round(v)));
                     }
                 }
                 this.persistTune();
@@ -379,11 +385,14 @@
                 const vpLeft = viewport && typeof viewport.offsetLeft === 'number' ? viewport.offsetLeft : 0;
                 const vpTop  = viewport && typeof viewport.offsetTop  === 'number' ? viewport.offsetTop  : 0;
 
-                const base = Math.min(vw / this.designWidth, vh / this.designHeight);
-                const baseScale = Number.isFinite(base) && base > 0 ? base : 1;
+                const isPresentation = document.body.classList.contains('presentation-mode');
+                const baseX = isPresentation ? (vw / this.designWidth) : Math.min(vw / this.designWidth, vh / this.designHeight);
+                const baseY = isPresentation ? (vh / this.designHeight) : Math.min(vw / this.designWidth, vh / this.designHeight);
+                const safeBaseX = Number.isFinite(baseX) && baseX > 0 ? baseX : 1;
+                const safeBaseY = Number.isFinite(baseY) && baseY > 0 ? baseY : 1;
                 const tuneScale = (this.tune.scalePct || 100) / 100;
-                const desiredScaleY = baseScale * tuneScale;
-                const desiredScaleX = desiredScaleY * ((this.tune.widthPct || 100) / 100);
+                const desiredScaleX = safeBaseX * tuneScale * ((this.tune.widthPct || 100) / 100);
+                const desiredScaleY = safeBaseY * tuneScale * ((this.tune.heightPct || 100) / 100);
 
                 const setScaleAndCenter = (scaleX, scaleY) => {
                     document.documentElement.style.setProperty('--ui-scale', String(scaleY));
@@ -1101,6 +1110,8 @@
                 const tuneOffsetYVal    = document.getElementById('tune-offsety-val');
                 const tuneWidth         = document.getElementById('tune-width');
                 const tuneWidthVal      = document.getElementById('tune-width-val');
+                const tuneHeight        = document.getElementById('tune-height');
+                const tuneHeightVal     = document.getElementById('tune-height-val');
 
                 const open = () => {
                     panel.classList.add('open');
@@ -1112,6 +1123,8 @@
                     if (tuneOffsetYVal) tuneOffsetYVal.textContent = String(ViewportScale.tune.offsetY ?? 0);
                     if (tuneWidth) tuneWidth.value = String(ViewportScale.tune.widthPct ?? 100);
                     if (tuneWidthVal) tuneWidthVal.textContent = `${ViewportScale.tune.widthPct ?? 100}%`;
+                    if (tuneHeight) tuneHeight.value = String(ViewportScale.tune.heightPct ?? 100);
+                    if (tuneHeightVal) tuneHeightVal.textContent = `${ViewportScale.tune.heightPct ?? 100}%`;
                 };
                 const close  = () => { panel.classList.remove('open'); panel.setAttribute('aria-hidden', 'true'); };
                 const toggle = () => { panel.classList.contains('open') ? close() : open(); };
@@ -1133,19 +1146,22 @@
                 proprietarioSelect.onchange = applyFromUI;
 
                 const applyTune = () => {
-                    if (!tuneScale || !tuneOffsetY || !tuneWidth) return;
+                    if (!tuneScale || !tuneOffsetY || !tuneWidth || !tuneHeight) return;
                     ViewportScale.setTune({
                         scalePct: Number(tuneScale.value),
                         offsetY: Number(tuneOffsetY.value),
                         widthPct: Number(tuneWidth.value),
+                        heightPct: Number(tuneHeight.value),
                     });
                     if (tuneScaleVal)  tuneScaleVal.textContent  = `${ViewportScale.tune.scalePct}%`;
                     if (tuneOffsetYVal) tuneOffsetYVal.textContent = String(ViewportScale.tune.offsetY);
                     if (tuneWidthVal) tuneWidthVal.textContent = `${ViewportScale.tune.widthPct}%`;
+                    if (tuneHeightVal) tuneHeightVal.textContent = `${ViewportScale.tune.heightPct}%`;
                 };
                 if (tuneScale)   tuneScale.addEventListener('input',  applyTune, { passive: true });
                 if (tuneOffsetY) tuneOffsetY.addEventListener('input', applyTune, { passive: true });
                 if (tuneWidth)   tuneWidth.addEventListener('input', applyTune, { passive: true });
+                if (tuneHeight)  tuneHeight.addEventListener('input', applyTune, { passive: true });
 
                 window.addEventListener('keydown', (e) => {
                     const key = (e.key || '').toLowerCase();
@@ -1227,6 +1243,14 @@
                 // Last Update
                 const now = new Date();
                 document.getElementById('last-update').textContent = `ÚLTIMA ATUALIZAÇÃO: ${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}`;
+                const pLast = document.getElementById('presentation-last-update');
+                if (pLast) pLast.textContent = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+                const pEmb = document.getElementById('presentation-embarcados');
+                if (pEmb) pEmb.textContent = Number(stats.totalEmbarcados || 0).toLocaleString('pt-BR');
+                const pFat = document.getElementById('presentation-faturados');
+                if (pFat) pFat.textContent = Number(stats.faturadosAguardando || 0).toLocaleString('pt-BR');
+                const pAgu = document.getElementById('presentation-aguardando');
+                if (pAgu) pAgu.textContent = Number(stats.faturadosAguardando || 0).toLocaleString('pt-BR');
 
                 // Veículos Bloqueados — grid 2×2 com paginação
                 const bloqueados = DataService.getFiltered('inventario')
@@ -1373,6 +1397,7 @@
                 });
 
                 this.renderCharts(stats);
+                try { PresentationDashboard.syncKPIs(stats); } catch (_) {}
             },
 
             animateValue(id, end) {
@@ -1974,9 +1999,227 @@
             }
         };
 
+        const PresentationDashboard = {
+            storageKey: 'AVANTRAX_PRESENTATION_MODE',
+            enabled: false,
+            paused: false,
+            groupIndex: 0,
+            rotateMs: 15000,
+            timer: 0,
+            groups: [
+                { label: '1/4 · Status faturamento + TP venda', cards: ['status-fat', 'tp-venda'] },
+                { label: '2/4 · Bloqueados + Heatmap aging', cards: ['bloqueados', 'aging-patio'] },
+                { label: '3/4 · Top transportadoras + Aging embarcados', cards: ['top-transportadoras', 'aging-embarcados'] },
+                { label: '4/4 · Top modelos + Veículos críticos', cards: ['top-modelos', 'veiculos-criticos'] },
+            ],
+            cardMap: {},
+            leftCard: null,
+            criticalCard: null,
+            _boundKey: null,
+
+            init() {
+                this.bindButton();
+                this.captureCards();
+                this.ensureCriticalCard();
+                const existingCrit = Number(String(document.getElementById('kpi-criticos')?.textContent || '0').replace(/[^\d]/g, '')) || 0;
+                this.syncKPIs({ criticos: existingCrit });
+                this.bindKeys();
+                if (this.readPersisted()) this.enable();
+                else this.updateBadge();
+            },
+
+            bindButton() {
+                const btn = document.getElementById('presentation-toggle-btn');
+                if (!btn) return;
+                btn.addEventListener('click', () => this.toggle());
+            },
+
+            bindKeys() {
+                if (this._boundKey) return;
+                this._boundKey = (e) => {
+                    const key = String(e.key || '').toLowerCase();
+                    const tag = String(e.target?.tagName || '').toLowerCase();
+                    const isInput = tag === 'input' || tag === 'textarea' || tag === 'select';
+
+                    if (key === 'f2') {
+                        e.preventDefault();
+                        this.toggle();
+                        return;
+                    }
+                    if (!this.enabled) return;
+                    if (key === 'escape') {
+                        e.preventDefault();
+                        this.disable();
+                        return;
+                    }
+                    if (key === 'arrowright') {
+                        e.preventDefault();
+                        this.nextGroup(true);
+                        return;
+                    }
+                    if (key === 'arrowleft') {
+                        e.preventDefault();
+                        this.prevGroup(true);
+                        return;
+                    }
+                    if (key === ' ' && !isInput) {
+                        e.preventDefault();
+                        this.togglePause();
+                    }
+                };
+                window.addEventListener('keydown', this._boundKey, true);
+            },
+
+            captureCards() {
+                const all = Array.from(document.querySelectorAll('[data-presentation-card]'));
+                this.cardMap = {};
+                all.forEach((el) => { this.cardMap[el.dataset.presentationCard] = el; });
+                this.leftCard = this.cardMap['center-total'] || null;
+            },
+
+            ensureCriticalCard() {
+                if (this.criticalCard) return;
+                const grid = document.querySelector('.main-grid');
+                if (!grid) return;
+                const card = document.createElement('div');
+                card.className = 'card';
+                card.dataset.presentationCard = 'veiculos-criticos';
+                card.style.display = 'none';
+                card.innerHTML = `
+                    <div class="card-header">
+                        <span class="card-title">Veículos Críticos</span>
+                    </div>
+                    <div style="display:flex;flex:1;align-items:center;justify-content:center;flex-direction:column;gap:14px;">
+                        <div id="presentation-criticos-value" style="font-size:7rem;line-height:1;font-weight:900;color:#EF4444;font-family:'JetBrains Mono',monospace;text-shadow:0 0 24px rgba(239,68,68,.28);">0</div>
+                        <div style="font-size:1.02rem;color:#94A3B8;text-transform:uppercase;letter-spacing:1.2px;">Aging acima de 90 dias</div>
+                    </div>
+                `.trim();
+                grid.appendChild(card);
+                this.criticalCard = card;
+                this.cardMap['veiculos-criticos'] = card;
+            },
+
+            readPersisted() {
+                try { return localStorage.getItem(this.storageKey) === '1'; } catch (_) { return false; }
+            },
+
+            persist(value) {
+                try { localStorage.setItem(this.storageKey, value ? '1' : '0'); } catch (_) {}
+            },
+
+            toggle() {
+                if (this.enabled) this.disable();
+                else this.enable();
+            },
+
+            enable() {
+                this.captureCards();
+                this.ensureCriticalCard();
+                if (!this.leftCard) return;
+                this.enabled = true;
+                this.paused = false;
+                document.body.classList.add('presentation-mode');
+                document.documentElement.classList.add('presentation-mode-root');
+                try { ViewportScale.apply(); } catch (_) {}
+                const summary = document.getElementById('presentation-summary');
+                if (summary) summary.setAttribute('aria-hidden', 'false');
+                this.applyGroup();
+                this.startTimer();
+                this.persist(true);
+                this.updateBadge();
+            },
+
+            disable() {
+                this.enabled = false;
+                this.paused = false;
+                this.stopTimer();
+                document.body.classList.remove('presentation-mode');
+                document.documentElement.classList.remove('presentation-mode-root');
+                try { ViewportScale.apply(); } catch (_) {}
+                const summary = document.getElementById('presentation-summary');
+                if (summary) summary.setAttribute('aria-hidden', 'true');
+                this.clearClasses();
+                this.persist(false);
+                this.updateBadge();
+            },
+
+            clearClasses() {
+                Object.values(this.cardMap).forEach((card) => {
+                    if (!card) return;
+                    card.classList.remove('presentation-left', 'presentation-slot-a', 'presentation-slot-b');
+                });
+            },
+
+            startTimer() {
+                this.stopTimer();
+                this.timer = window.setInterval(() => {
+                    if (!this.enabled || this.paused) return;
+                    this.nextGroup(false);
+                }, this.rotateMs);
+            },
+
+            stopTimer() {
+                if (!this.timer) return;
+                clearInterval(this.timer);
+                this.timer = 0;
+            },
+
+            togglePause() {
+                if (!this.enabled) return;
+                this.paused = !this.paused;
+                this.updateBadge();
+            },
+
+            nextGroup(fromKeyboard) {
+                if (!this.enabled) return;
+                this.groupIndex = (this.groupIndex + 1) % this.groups.length;
+                this.applyGroup();
+                if (fromKeyboard) this.updateBadge();
+            },
+
+            prevGroup(fromKeyboard) {
+                if (!this.enabled) return;
+                this.groupIndex = (this.groupIndex - 1 + this.groups.length) % this.groups.length;
+                this.applyGroup();
+                if (fromKeyboard) this.updateBadge();
+            },
+
+            applyGroup() {
+                this.clearClasses();
+                if (!this.enabled) return;
+                this.leftCard?.classList.add('presentation-left');
+                const group = this.groups[this.groupIndex] || this.groups[0];
+                const a = this.cardMap[group.cards[0]];
+                const b = this.cardMap[group.cards[1]];
+                if (a) a.classList.add('presentation-slot-a');
+                if (b) b.classList.add('presentation-slot-b');
+                this.updateBadge();
+            },
+
+            updateBadge() {
+                const btn = document.getElementById('presentation-toggle-btn');
+                const label = document.getElementById('presentation-group-label');
+                if (btn) {
+                    const pause = this.enabled && this.paused ? ' • Pausado' : '';
+                    btn.textContent = this.enabled ? `Apresentação${pause}` : 'Apresentação';
+                }
+                if (label) {
+                    if (!this.enabled) { label.textContent = ''; return; }
+                    const g = this.groups[this.groupIndex] || this.groups[0];
+                    label.textContent = `${g.label} · 15s`;
+                }
+            },
+
+            syncKPIs(stats) {
+                const v = document.getElementById('presentation-criticos-value');
+                if (v) v.textContent = Number(stats?.criticos || 0).toLocaleString('pt-BR');
+            },
+        };
+
         window.onload = async () => {
             Animations.init();
             await DashboardRender.init();
+            PresentationDashboard.init();
         };
 
         const postReadyToParent = () => {
