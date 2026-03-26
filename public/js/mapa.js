@@ -450,7 +450,15 @@ function collectKeys(rows, limit = 80) {
 }
 
 function normalizeHeader(value) {
-    return String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toUpperCase();
+    return String(value ?? '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toUpperCase()
+        .replace(/[\s\-]+/g, '_')
+        .replace(/[^A-Z0-9_]/g, '_')
+        .replace(/_+/g, '_')
+        .replace(/^_+|_+$/g, '')
+        .trim();
 }
 
 function findBestKey(rows, candidates, heuristics = []) {
@@ -1097,6 +1105,59 @@ function showDashboard(inventarioRows) {
 // PARSE XLSX
 // ════════════════════════════════════════════════════════════════
 async function parseXLSX(file) {
+    const normalizeHeaderCell = (value, index) => {
+        const normalized = String(value ?? '')
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .toUpperCase()
+            .replace(/[\s\-]+/g, '_')
+            .replace(/[^A-Z0-9_]/g, '_')
+            .replace(/_+/g, '_')
+            .replace(/^_+|_+$/g, '')
+            .trim();
+        return normalized || `COLUNA_${index}`;
+    };
+
+    const makeUniqueHeader = (baseHeader, colIndex, used) => {
+        if (!used.has(baseHeader)) {
+            used.set(baseHeader, 1);
+            return baseHeader;
+        }
+        const nextCount = (used.get(baseHeader) || 1) + 1;
+        used.set(baseHeader, nextCount);
+        return `${baseHeader}_${colIndex}`;
+    };
+
+    const getHeaderAliases = (normalizedHeader, rawHeader) => {
+        const aliases = new Set();
+        const rawTrimmed = String(rawHeader ?? '').trim();
+        if (rawTrimmed) aliases.add(rawTrimmed);
+        if (normalizedHeader.includes('_')) aliases.add(normalizedHeader.replace(/_/g, ' '));
+
+        const explicitAliasGroups = [
+            ['MOTIVO_BLOQUEIO', 'MOTIVO BLOQUEIO'],
+            ['LOCAL_ENTREGA', 'LOCAL ENTREGA'],
+            ['DESC_CLIENTE', 'DESC CLIENTE'],
+            ['DATA_EXPEDICAO', 'DATA EXPEDICAO', 'DATA EXPEDIÇÃO'],
+            ['DESCRICAO_MODELO', 'DESCRICAO MODELO', 'DESCRIÇÃO MODELO'],
+        ];
+
+        for (const group of explicitAliasGroups) {
+            if (group.includes(normalizedHeader) || group.includes(rawTrimmed)) {
+                group.forEach((g) => aliases.add(g));
+            }
+        }
+
+        aliases.delete(normalizedHeader);
+        return Array.from(aliases);
+    };
+
+    const requiredInventarioColumns = [
+        'SITE','PROPRIETARIO','MONTADORA','NF','CHAVE','STAT_FAT','DT_FAT','HR_FAT','CHASSI','PAIS_DESTINO',
+        'CODIGO','MODELO','SUFIXO','DEP','AR','ENDERECO','AGING_PATIO','AGING_TOTAL','CLIENTE','DESC_CLIENTE',
+        'LOCAL_ENTREGA','COR','DATA_CRIACAO','HORA_CRIACAO','TRANSPORTADORA','MOTIVO_BLOQUEIO','TP_VENDA',
+    ];
+
     const getBuffer = async () => {
         if (file && typeof file.arrayBuffer === 'function') return file.arrayBuffer();
         return new Promise((resolve, reject) => {
@@ -1110,7 +1171,67 @@ async function parseXLSX(file) {
     const buf = await getBuffer();
     const data = new Uint8Array(buf);
     const wb = XLSX.read(data, { type: 'array' });
-    return XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+    const worksheet = wb.Sheets[wb.SheetNames[0]];
+    const matrix = XLSX.utils.sheet_to_json(worksheet, {
+        header: 1,
+        defval: '',
+        blankrows: false,
+    });
+
+    const rawHeaders = Array.isArray(matrix[0]) ? matrix[0] : [];
+    const dataRows = matrix.slice(1);
+    const totalColumns = Math.max(
+        rawHeaders.length,
+        ...dataRows.map((row) => (Array.isArray(row) ? row.length : 0)),
+        0
+    );
+
+    const used = new Map();
+    const headers = [];
+    const baseHeaders = [];
+    const aliasesByIndex = [];
+
+    for (let colIndex = 0; colIndex < totalColumns; colIndex++) {
+        const rawHeader = rawHeaders[colIndex] ?? '';
+        const baseHeader = normalizeHeaderCell(rawHeader, colIndex);
+        const uniqueHeader = makeUniqueHeader(baseHeader, colIndex, used);
+        headers.push(uniqueHeader);
+        baseHeaders.push(baseHeader);
+        aliasesByIndex.push(getHeaderAliases(uniqueHeader, rawHeader));
+    }
+
+    const rows = dataRows.map((row) => {
+        const out = {};
+        for (let colIndex = 0; colIndex < totalColumns; colIndex++) {
+            const key = headers[colIndex];
+            const value = Array.isArray(row) ? (row[colIndex] ?? '') : '';
+            out[key] = value;
+
+            const aliases = aliasesByIndex[colIndex] || [];
+            for (const alias of aliases) {
+                if (!alias || Object.prototype.hasOwnProperty.call(out, alias)) continue;
+                out[alias] = value;
+            }
+        }
+        return out;
+    });
+
+    const missingRequired = requiredInventarioColumns.filter((required) => !baseHeaders.includes(required));
+    const firstRow = rows[0] ?? {};
+    const fileName = file?.name || 'inventario_de_patio.xlsx';
+    console.log(`[upload:inventario] arquivo: ${fileName}`);
+    console.log('[upload:inventario] headers brutos:', rawHeaders);
+    console.log('[upload:inventario] headers normalizados:', headers);
+    console.log('[upload:inventario] total de colunas lidas:', headers.length);
+    console.log('[upload:inventario] primeira linha montada:', firstRow);
+    console.log('[upload:inventario] quantidade de chaves da primeira linha:', Object.keys(firstRow).length);
+    if (missingRequired.length) {
+        console.warn('[upload:inventario] colunas obrigatorias ausentes:', missingRequired);
+    } else {
+        console.log('[upload:inventario] colunas obrigatorias ausentes: nenhuma');
+    }
+
+    return rows;
 }
 
 function analyzeInventarioRows(rows) {

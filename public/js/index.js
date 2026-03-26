@@ -415,7 +415,15 @@
             storageKey: 'avantrax.filters.v1',
 
             normalizeHeader(value) {
-                return String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toUpperCase();
+                return String(value ?? '')
+                    .normalize('NFD')
+                    .replace(/[\u0300-\u036f]/g, '')
+                    .toUpperCase()
+                    .replace(/[\s\-]+/g, '_')
+                    .replace(/[^A-Z0-9_]/g, '_')
+                    .replace(/_+/g, '_')
+                    .replace(/^_+|_+$/g, '')
+                    .trim();
             },
             normalizeValue(value) { return String(value ?? '').trim(); },
 
@@ -588,7 +596,75 @@
         };
 
         const Parser = {
-            async parseFile(file) {
+            normalizeHeaderCell(value, index) {
+                const raw = String(value ?? '').trim();
+                const normalized = raw
+                    .normalize('NFD')
+                    .replace(/[\u0300-\u036f]/g, '')
+                    .toUpperCase()
+                    .replace(/[\s\-]+/g, '_')
+                    .replace(/[^A-Z0-9_]/g, '_')
+                    .replace(/_+/g, '_')
+                    .replace(/^_+|_+$/g, '')
+                    .trim();
+                return normalized || `COLUNA_${index}`;
+            },
+
+            makeUniqueHeader(baseHeader, colIndex, used) {
+                if (!used.has(baseHeader)) {
+                    used.set(baseHeader, 1);
+                    return baseHeader;
+                }
+                const nextCount = (used.get(baseHeader) || 1) + 1;
+                used.set(baseHeader, nextCount);
+                return `${baseHeader}_${colIndex}`;
+            },
+
+            getHeaderAliases(normalizedHeader, rawHeader) {
+                const aliases = new Set();
+                const rawTrimmed = String(rawHeader ?? '').trim();
+                if (rawTrimmed) aliases.add(rawTrimmed);
+                if (normalizedHeader.includes('_')) aliases.add(normalizedHeader.replace(/_/g, ' '));
+
+                const explicitAliasGroups = [
+                    ['MOTIVO_BLOQUEIO', 'MOTIVO BLOQUEIO'],
+                    ['LOCAL_ENTREGA', 'LOCAL ENTREGA'],
+                    ['DESC_CLIENTE', 'DESC CLIENTE'],
+                    ['DATA_EXPEDICAO', 'DATA EXPEDICAO', 'DATA EXPEDIÇÃO'],
+                    ['DESCRICAO_MODELO', 'DESCRICAO MODELO', 'DESCRIÇÃO MODELO'],
+                ];
+
+                for (const group of explicitAliasGroups) {
+                    if (group.includes(normalizedHeader) || group.includes(rawTrimmed)) {
+                        group.forEach((g) => aliases.add(g));
+                    }
+                }
+
+                aliases.delete(normalizedHeader);
+                return Array.from(aliases);
+            },
+
+            getRequiredColumns(type) {
+                if (type === 'inventario') {
+                    return [
+                        'SITE','PROPRIETARIO','MONTADORA','NF','CHAVE','STAT_FAT','DT_FAT','HR_FAT','CHASSI','PAIS_DESTINO',
+                        'CODIGO','MODELO','SUFIXO','DEP','AR','ENDERECO','AGING_PATIO','AGING_TOTAL','CLIENTE','DESC_CLIENTE',
+                        'LOCAL_ENTREGA','COR','DATA_CRIACAO','HORA_CRIACAO','TRANSPORTADORA','MOTIVO_BLOQUEIO','TP_VENDA',
+                    ];
+                }
+                if (type === 'embarcados') {
+                    return ['PROPRIETARIO','MONTADORA','CHASSI','DESCRICAO_MODELO','DATA_EXPEDICAO','FROTA'];
+                }
+                return [];
+            },
+
+            findMissingRequiredColumns(baseHeaders, requiredColumns) {
+                if (!requiredColumns.length) return [];
+                const headerSet = new Set(baseHeaders);
+                return requiredColumns.filter((required) => !headerSet.has(required));
+            },
+
+            async parseFile(file, type = 'generic') {
                 const getBuffer = async () => {
                     if (file && typeof file.arrayBuffer === 'function') return file.arrayBuffer();
                     return new Promise((resolve, reject) => {
@@ -603,7 +679,66 @@
                 const data = new Uint8Array(buffer);
                 const workbook = XLSX.read(data, { type: 'array' });
                 const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-                return XLSX.utils.sheet_to_json(worksheet);
+                const matrix = XLSX.utils.sheet_to_json(worksheet, {
+                    header: 1,
+                    defval: '',
+                    blankrows: false,
+                });
+
+                const rawHeaders = Array.isArray(matrix[0]) ? matrix[0] : [];
+                const dataRows = matrix.slice(1);
+                const totalColumns = Math.max(
+                    rawHeaders.length,
+                    ...dataRows.map((row) => (Array.isArray(row) ? row.length : 0)),
+                    0
+                );
+
+                const used = new Map();
+                const headers = [];
+                const baseHeaders = [];
+                const aliasesByIndex = [];
+
+                for (let colIndex = 0; colIndex < totalColumns; colIndex++) {
+                    const rawHeader = rawHeaders[colIndex] ?? '';
+                    const baseHeader = this.normalizeHeaderCell(rawHeader, colIndex);
+                    const uniqueHeader = this.makeUniqueHeader(baseHeader, colIndex, used);
+                    headers.push(uniqueHeader);
+                    baseHeaders.push(baseHeader);
+                    aliasesByIndex.push(this.getHeaderAliases(uniqueHeader, rawHeader));
+                }
+
+                const rows = dataRows.map((row) => {
+                    const out = {};
+                    for (let colIndex = 0; colIndex < totalColumns; colIndex++) {
+                        const key = headers[colIndex];
+                        const value = Array.isArray(row) ? (row[colIndex] ?? '') : '';
+                        out[key] = value;
+
+                        const aliases = aliasesByIndex[colIndex] || [];
+                        for (const alias of aliases) {
+                            if (!alias || Object.prototype.hasOwnProperty.call(out, alias)) continue;
+                            out[alias] = value;
+                        }
+                    }
+                    return out;
+                });
+
+                const firstRow = rows[0] ?? {};
+                const missingRequired = this.findMissingRequiredColumns(baseHeaders, this.getRequiredColumns(type));
+                const fileName = file?.name || 'arquivo_sem_nome.xlsx';
+                console.log(`[upload:${type}] arquivo: ${fileName}`);
+                console.log(`[upload:${type}] headers brutos:`, rawHeaders);
+                console.log(`[upload:${type}] headers normalizados:`, headers);
+                console.log(`[upload:${type}] total de colunas lidas:`, headers.length);
+                console.log(`[upload:${type}] primeira linha montada:`, firstRow);
+                console.log(`[upload:${type}] quantidade de chaves da primeira linha:`, Object.keys(firstRow).length);
+                if (missingRequired.length) {
+                    console.warn(`[upload:${type}] colunas obrigatorias ausentes:`, missingRequired);
+                } else {
+                    console.log(`[upload:${type}] colunas obrigatorias ausentes: nenhuma`);
+                }
+
+                return rows;
             }
         };
 
@@ -828,8 +963,8 @@
                     if (labelInv) labelInv.textContent = inv?.meta?.file_name || 'inventario_de_patio.xlsx';
 
                     const [dataEmb, dataInv] = await Promise.all([
-                        Parser.parseFile(emb.blob),
-                        Parser.parseFile(inv.blob),
+                        Parser.parseFile(emb.blob, 'embarcados'),
+                        Parser.parseFile(inv.blob, 'inventario'),
                     ]);
                     InventoryDiagnostics.warnIfIncomplete(dataInv, 'inventário carregado do Supabase');
                     DataService.setData('embarcados', dataEmb);
@@ -890,8 +1025,8 @@
                     btnStart.textContent = "PROCESSANDO...";
                     btnStart.disabled = true;
                     try {
-                        const dataEmb = await Parser.parseFile(this._embFile);
-                        const dataInv = await Parser.parseFile(this._invFile);
+                        const dataEmb = await Parser.parseFile(this._embFile, 'embarcados');
+                        const dataInv = await Parser.parseFile(this._invFile, 'inventario');
                         InventoryDiagnostics.warnIfIncomplete(dataInv, 'inventário enviado manualmente');
                         DataService.setData('embarcados', dataEmb);
                         DataService.setData('inventario', dataInv);
