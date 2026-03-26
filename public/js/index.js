@@ -242,18 +242,40 @@
             },
 
             makeStoragePath(type, fileName) {
-                const ts = new Date().toISOString().replace(/[:.]/g, '-');
-                return `${type}/${ts}-${this.safePathSegment(fileName)}`;
+                const match = String(fileName || '').match(/\.([a-zA-Z0-9]+)$/);
+                const ext = (match?.[1] || 'xlsx').toLowerCase();
+                return `${type}/latest.${ext}`;
             },
 
             async uploadFile(type, file) {
                 const supabase = this.getClient();
                 if (!supabase) throw new Error('Supabase não configurado (VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY).');
                 const path = this.makeStoragePath(type, file?.name || `${type}.xlsx`);
+                const tableName = this.tableForType(type);
+
+                const { data: currentRows, error: curErr } = await supabase
+                    .from(tableName)
+                    .select('storage_path');
+                if (curErr) throw curErr;
+
+                const existingPaths = (currentRows || [])
+                    .map((r) => r?.storage_path)
+                    .filter((p) => typeof p === 'string' && p.trim().length > 0);
+
+                if (existingPaths.length > 0) {
+                    const { error: rmErr } = await supabase.storage.from(this.bucket).remove(existingPaths);
+                    if (rmErr) console.warn(`[upload:${type}] falha ao remover arquivos antigos do bucket`, rmErr);
+                }
+
+                const { error: delErr } = await supabase
+                    .from(tableName)
+                    .delete()
+                    .not('storage_path', 'is', null);
+                if (delErr) throw delErr;
 
                 const { error: upErr } = await supabase.storage
                     .from(this.bucket)
-                    .upload(path, file, { upsert: false, contentType: file?.type || undefined });
+                    .upload(path, file, { upsert: true, contentType: file?.type || undefined });
                 if (upErr) throw upErr;
 
                 const table = this.tableForType(type);
