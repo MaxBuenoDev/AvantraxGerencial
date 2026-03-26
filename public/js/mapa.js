@@ -107,6 +107,46 @@ const SupabaseStore = {
         return payload;
     },
 };
+
+const RealtimeSync = {
+    _channel: null,
+    _reloadTimer: 0,
+    _onReload: null,
+
+    init(onReload) {
+        if (!SupabaseStore.isConfigured()) return;
+        const supabase = SupabaseStore.getClient();
+        if (!supabase) return;
+        this._onReload = typeof onReload === 'function' ? onReload : null;
+
+        if (this._channel) {
+            try { supabase.removeChannel(this._channel); } catch (_) {}
+            this._channel = null;
+        }
+
+        const channelName = `avantrax-upload-sync-mapa-${Date.now()}`;
+        this._channel = supabase
+            .channel(channelName)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'embarcados_uploads' }, () => {
+                this.scheduleReload('embarcados_uploads');
+            })
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'inventario_uploads' }, () => {
+                this.scheduleReload('inventario_uploads');
+            })
+            .subscribe();
+    },
+
+    scheduleReload(source) {
+        if (!this._onReload) return;
+        if (this._reloadTimer) clearTimeout(this._reloadTimer);
+        this._reloadTimer = window.setTimeout(async () => {
+            this._reloadTimer = 0;
+            try {
+                await this._onReload(source);
+            } catch (_) {}
+        }, 500);
+    },
+};
 // ════════════════════════════════════════════════════════════════
 // CONSTANTS & CONFIG
 // ════════════════════════════════════════════════════════════════
@@ -1555,6 +1595,9 @@ window.addEventListener('load', async () => {
     ViewportScale.apply();
     startClock();
     PresentationMapa.init();
+    RealtimeSync.init(async () => {
+        await tryLoadFromSupabase();
+    });
 
     if (TV_MODE) {
         const overlay = document.getElementById('upload-overlay');
