@@ -240,17 +240,22 @@
                         <span id="bloq-badge" style="font-size:0.65rem; padding:3px 10px; border-radius:20px; background:rgba(239,68,68,0.12); border:1px solid rgba(239,68,68,0.3); color:#EF4444; font-weight:800;">0</span>
                     </div>
 
-                    <!-- Pills de motivo -->
-                    <div id="bloq-motivos" style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px; flex-shrink:0;"></div>
+                    <div id="bloq-layout" style="display:flex; gap:10px; flex:1; min-height:0;">
+                        <!-- Coluna esquerda: cards de motivo -->
+                        <div id="bloq-motivos" style="display:flex; gap:6px; flex-wrap:wrap; flex-shrink:0; width:42%; align-content:flex-start;"></div>
 
-                    <!-- Grid 2×2 de cards -->
-                    <div id="bloq-grid" style="display:grid; grid-template-columns:1fr 1fr; gap:7px; flex:1;"></div>
+                        <!-- Coluna direita: chassis + paginação -->
+                        <div id="bloq-chassis-col" style="display:flex; flex-direction:column; min-width:0; min-height:0; flex:1;">
+                            <!-- Grid 2×2 de cards -->
+                            <div id="bloq-grid" style="display:grid; grid-template-columns:1fr 1fr; gap:7px; flex:1; min-height:0;"></div>
 
-                    <!-- Paginação -->
-                    <div id="bloq-pagination" style="display:flex; align-items:center; justify-content:space-between; margin-top:8px; flex-shrink:0;">
-                        <button id="bloq-prev" onclick="BloqPager.prev()" style="background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); color:#94A3B8; border-radius:8px; padding:4px 12px; font-size:0.7rem; font-weight:700; cursor:pointer; transition:all 0.2s;">‹ ANTERIOR</button>
-                        <span id="bloq-page-info" style="font-size:0.65rem; color:#475569; font-family:'JetBrains Mono',monospace;"></span>
-                        <button id="bloq-next" onclick="BloqPager.next()" style="background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); color:#94A3B8; border-radius:8px; padding:4px 12px; font-size:0.7rem; font-weight:700; cursor:pointer; transition:all 0.2s;">PRÓXIMO ›</button>
+                            <!-- Paginação -->
+                            <div id="bloq-pagination" style="display:flex; align-items:center; justify-content:space-between; margin-top:8px; flex-shrink:0;">
+                                <button id="bloq-prev" onclick="BloqPager.prev()" style="background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); color:#94A3B8; border-radius:8px; padding:4px 12px; font-size:0.7rem; font-weight:700; cursor:pointer; transition:all 0.2s;">‹ ANTERIOR</button>
+                                <span id="bloq-page-info" style="font-size:0.65rem; color:#475569; font-family:'JetBrains Mono',monospace;"></span>
+                                <button id="bloq-next" onclick="BloqPager.next()" style="background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); color:#94A3B8; border-radius:8px; padding:4px 12px; font-size:0.7rem; font-weight:700; cursor:pointer; transition:all 0.2s;">PRÓXIMO ›</button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>

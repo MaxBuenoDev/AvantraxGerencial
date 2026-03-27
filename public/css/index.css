@@ -1078,81 +1078,97 @@
             color: #9FB1CC;
         }
 
-        body.presentation-mode [data-presentation-card="bloqueados"] #bloq-motivos > div {
-            font-size: 0.78rem !important;
-            padding: 5px 11px !important;
+        body.presentation-mode [data-presentation-card="bloqueados"] {
+            display: flex !important;
+            flex-direction: column;
+            min-height: 0;
+            overflow: hidden;
+        }
+        body.presentation-mode [data-presentation-card="bloqueados"] #bloq-badge {
+            font-size: 0.82rem !important;
+            padding: 5px 12px !important;
+            border-radius: 999px !important;
+            background: rgba(239, 68, 68, 0.18) !important;
+            border: 1px solid rgba(239, 68, 68, 0.45) !important;
+            color: #FF6B6B !important;
+            letter-spacing: 0.3px;
+            font-family: 'JetBrains Mono', monospace !important;
+            font-weight: 900 !important;
+            box-shadow: 0 0 14px rgba(239, 68, 68, 0.2);
+        }
+        body.presentation-mode [data-presentation-card="bloqueados"] #bloq-layout {
+            display: grid !important;
+            grid-template-columns: minmax(215px, 36%) minmax(0, 1fr);
+            gap: 10px;
+            flex: 1;
+            min-height: 0;
         }
         body.presentation-mode [data-presentation-card="bloqueados"] #bloq-motivos {
             display: grid !important;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
-            gap: 6px !important;
-            margin-bottom: 6px !important;
-            max-height: 56px;
+            grid-template-columns: 1fr;
+            gap: 8px !important;
+            align-content: start;
+            min-height: 0;
             overflow: hidden;
-            align-items: stretch;
+            width: auto !important;
         }
         body.presentation-mode [data-presentation-card="bloqueados"] #bloq-motivos > div {
             width: 100% !important;
             min-width: 0;
-            max-width: 100% !important;
-            min-height: 24px;
-            font-size: 0.66rem !important;
-            padding: 3px 8px !important;
+            min-height: 48px;
+            font-size: 0.72rem !important;
+            padding: 8px 10px !important;
             border-radius: 10px !important;
-            white-space: nowrap;
+            white-space: normal;
             overflow: hidden;
             text-overflow: ellipsis;
+            box-shadow: inset 0 0 0 1px rgba(255,255,255,0.03);
         }
-        body.presentation-mode [data-presentation-card="bloqueados"] {
-            display: grid !important;
-            grid-template-rows: auto auto 1fr auto;
-            align-content: stretch;
+        body.presentation-mode [data-presentation-card="bloqueados"] #bloq-chassis-col {
+            display: flex !important;
+            flex-direction: column;
             min-height: 0;
+            min-width: 0;
         }
         body.presentation-mode [data-presentation-card="bloqueados"] #bloq-grid {
             gap: 8px !important;
             min-height: 0;
             overflow: hidden;
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            grid-template-rows: repeat(2, minmax(0, 1fr)) !important;
+            align-content: stretch;
         }
         body.presentation-mode [data-presentation-card="bloqueados"] #bloq-grid > div {
             border-radius: 12px !important;
-            padding: 9px 11px !important;
-            gap: 6px !important;
+            padding: 10px 12px !important;
+            gap: 7px !important;
+            min-height: 0;
+            overflow: hidden;
         }
         body.presentation-mode [data-presentation-card="bloqueados"] #bloq-grid > div > div:first-child > div:first-child {
             font-size: 0.9rem !important;
         }
         body.presentation-mode [data-presentation-card="bloqueados"] #bloq-grid > div > div:first-child > div:last-child > div:first-child {
-            font-size: 1.28rem !important;
+            font-size: 1.22rem !important;
         }
         body.presentation-mode [data-presentation-card="bloqueados"] #bloq-grid > div > div:first-child > div:last-child > div:last-child {
             font-size: 0.62rem !important;
         }
         body.presentation-mode [data-presentation-card="bloqueados"] #bloq-grid > div > div:nth-child(2) {
-            font-size: 0.76rem !important;
+            font-size: 0.74rem !important;
             color: #8EA4C4 !important;
         }
         body.presentation-mode [data-presentation-card="bloqueados"] #bloq-grid > div > div:last-child span:last-child {
-            font-size: 0.72rem !important;
+            font-size: 0.68rem !important;
         }
         body.presentation-mode [data-presentation-card="bloqueados"] #bloq-page-info {
-            font-size: 0.86rem !important;
+            font-size: 0.82rem !important;
         }
         body.presentation-mode [data-presentation-card="bloqueados"] #bloq-pagination {
-            margin-top: 10px !important;
+            margin-top: 8px !important;
             padding-top: 8px;
             border-top: 1px solid rgba(255, 255, 255, 0.08);
-            position: relative;
-            z-index: 2;
-            flex-shrink: 0;
-        }
-        body.presentation-mode [data-presentation-card="bloqueados"] #bloq-pagination {
             display: none !important;
-        }
-        body.presentation-mode [data-presentation-card="bloqueados"] #bloq-prev,
-        body.presentation-mode [data-presentation-card="bloqueados"] #bloq-next {
-            font-size: 0.78rem !important;
-            padding: 6px 12px !important;
         }
         body.presentation-mode [data-presentation-card="bloqueados"] #bloq-prev,
         body.presentation-mode [data-presentation-card="bloqueados"] #bloq-next {

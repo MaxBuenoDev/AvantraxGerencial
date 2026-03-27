@@ -1308,7 +1308,12 @@
                     .filter(i => i['MOTIVO BLOQUEIO'] && String(i['MOTIVO BLOQUEIO']).trim() !== '')
                     .sort((a,b) => (Number(b.AGING_PATIO)||0) - (Number(a.AGING_PATIO)||0));
 
-                document.getElementById('bloq-badge').textContent = bloqueados.length;
+                const totalBloq = Number(bloqueados.length || 0);
+                const bloqBadge = document.getElementById('bloq-badge');
+                if (bloqBadge) {
+                    bloqBadge.textContent = `TOTAL ${totalBloq.toLocaleString('pt-BR')}`;
+                    bloqBadge.title = `Total geral de bloqueados: ${totalBloq.toLocaleString('pt-BR')}`;
+                }
 
                 // Agrupa por motivo para pills
                 const motivoMap = {};
@@ -1329,15 +1334,44 @@
                 const motivoColorIndex = {};
                 motivosSorted.forEach(([m], idx) => { motivoColorIndex[m] = motivoCores[idx % motivoCores.length]; });
 
-                // Pills de resumo
+                // Cards de resumo por motivo
                 const motivosEl = document.getElementById('bloq-motivos');
                 motivosEl.innerHTML = '';
-                motivosSorted.slice(0, 4).forEach(([motivo, count]) => {
+                const totalCard = document.createElement('div');
+                totalCard.style.cssText = `
+                    display:flex;align-items:center;justify-content:space-between;gap:8px;
+                    padding:6px 10px;border-radius:10px;
+                    background:linear-gradient(180deg, rgba(0,191,255,0.16), rgba(0,191,255,0.08));
+                    border:1px solid rgba(0,191,255,0.35);
+                    font-size:0.64rem;font-weight:800;color:#8FE9FF;
+                `;
+                totalCard.innerHTML = `
+                    <span style="display:inline-flex;align-items:center;gap:6px;min-width:0;">
+                        <span style="width:6px;height:6px;border-radius:50%;background:#00BFFF;box-shadow:0 0 8px rgba(0,191,255,.45);flex-shrink:0;"></span>
+                        <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">TOTAL GERAL</span>
+                    </span>
+                    <span style="padding:2px 8px;border-radius:999px;background:rgba(0,191,255,0.2);border:1px solid rgba(0,191,255,0.38);font-family:'JetBrains Mono',monospace;color:#E8F8FF;">${totalBloq.toLocaleString('pt-BR')}</span>
+                `;
+                motivosEl.appendChild(totalCard);
+
+                motivosSorted.slice(0, 3).forEach(([motivo, count]) => {
                     const c = motivoColorIndex[motivo];
-                    const pill = document.createElement('div');
-                    pill.style.cssText = `display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:20px;background:${c.bg};border:1px solid ${c.border};font-size:0.6rem;font-weight:700;color:${c.text};white-space:nowrap;`;
-                    pill.innerHTML = `<span style="width:5px;height:5px;border-radius:50%;background:${c.text};flex-shrink:0;"></span>${motivo} <span style="opacity:0.7;">(${count})</span>`;
-                    motivosEl.appendChild(pill);
+                    const card = document.createElement('div');
+                    card.style.cssText = `
+                        display:flex;align-items:center;justify-content:space-between;gap:8px;
+                        padding:6px 10px;border-radius:10px;
+                        background:${c.bg};
+                        border:1px solid ${c.border};
+                        font-size:0.64rem;font-weight:800;color:${c.text};
+                    `;
+                    card.innerHTML = `
+                        <span style="display:inline-flex;align-items:center;gap:6px;min-width:0;">
+                            <span style="width:6px;height:6px;border-radius:50%;background:${c.text};flex-shrink:0;"></span>
+                            <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${motivo}</span>
+                        </span>
+                        <span style="padding:2px 8px;border-radius:999px;background:rgba(0,0,0,0.16);border:1px solid rgba(255,255,255,0.16);font-family:'JetBrains Mono',monospace;color:${c.text};">${Number(count || 0).toLocaleString('pt-BR')}</span>
+                    `;
+                    motivosEl.appendChild(card);
                 });
 
                 const getAgingColor = (aging) => {
@@ -1346,6 +1380,7 @@
                     return '#94A3B8';
                 };
 
+                const isPresentationMode = document.body.classList.contains('presentation-mode');
                 const PER_PAGE = 4;
 
                 const renderBloqPage = (page) => {
@@ -1365,15 +1400,17 @@
 
                         const card = document.createElement('div');
                         card.style.cssText = `
-                            background: rgba(255,255,255,0.025);
-                            border: 1px solid rgba(255,255,255,0.07);
+                            background: linear-gradient(180deg, rgba(20,34,68,0.34), rgba(15,23,42,0.22));
+                            border: 1px solid rgba(255,255,255,0.08);
                             border-left: 3px solid ${c.text};
-                            border-radius: 10px;
+                            border-radius: 12px;
                             padding: 10px 12px;
                             display: flex;
                             flex-direction: column;
+                            justify-content: space-between;
                             gap: 6px;
                             min-width: 0;
+                            box-shadow: inset 0 0 0 1px rgba(255,255,255,0.02);
                         `;
                         card.innerHTML = `
                             <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:6px;">
@@ -1427,7 +1464,7 @@
                     resetTimer() {
                         if (this.timer) clearInterval(this.timer);
                         if (this.total > 1) {
-                            this.timer = setInterval(() => this.next(), 6000);
+                            this.timer = setInterval(() => this.next(), isPresentationMode ? 5000 : 6000);
                         }
                     }
                 };
