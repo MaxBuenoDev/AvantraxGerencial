@@ -1967,9 +1967,45 @@
                     { label: '> 30d',    min: 31, max: Infinity,  color: '#EF4444', bg: 'rgba(239,68,68,0.12)',  border: 'rgba(239,68,68,0.3)',  desc: 'Crítico' },
                 ];
 
+                const parseDataExpedicao = (v) => {
+                    if (v === undefined || v === null || v === '') return null;
+                    if (typeof v === 'number') {
+                        return new Date(Date.UTC(1899, 11, 30) + v * 86400000);
+                    }
+                    const s = String(v).trim();
+                    const brMatch = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+                    if (brMatch) {
+                        return new Date(Number(brMatch[3]), Number(brMatch[2]) - 1, Number(brMatch[1]));
+                    }
+                    const d = new Date(s);
+                    return isNaN(d.getTime()) ? null : d;
+                };
+
+                const hojeEmb = new Date();
+                const diaEmb = hojeEmb.getDate();
+                const mesEmb = hojeEmb.getMonth();
+                const anoEmb = hojeEmb.getFullYear();
+
+                const embarcadosHoje = embarcados.filter(e => {
+                    const raw = e['DATA EXPEDIÇÃO']
+                        ?? e['DATA EXPEDICAO']
+                        ?? e['DT_EXPEDICAO']
+                        ?? e['DT EXPEDICAO']
+                        ?? e['DATA_EXPEDICAO']
+                        ?? e['DT EXPEDIÇÃO']
+                        ?? e['DT_EXPEDIÇÃO'];
+                    const d = parseDataExpedicao(raw);
+                    if (!d) return false;
+                    const useUTC = typeof raw === 'number';
+                    const dia = useUTC ? d.getUTCDate() : d.getDate();
+                    const mes = useUTC ? d.getUTCMonth() : d.getMonth();
+                    const ano = useUTC ? d.getUTCFullYear() : d.getFullYear();
+                    return dia === diaEmb && mes === mesEmb && ano === anoEmb;
+                });
+
                 const embCounts = embBands.map(b => ({
                     ...b,
-                    count: embarcados.filter(e => {
+                    count: embarcadosHoje.filter(e => {
                         const a = Number(e.AGING) || 0;
                         return a >= b.min && a <= b.max;
                     }).length
@@ -1979,8 +2015,8 @@
                 const totalEmbAging = embCounts.reduce((s, b) => s + b.count, 0);
 
                 // Calcula aging médio dos embarcados
-                const embAgingSum = embarcados.reduce((acc, e) => acc + (Number(e.AGING) || 0), 0);
-                const embAgingAvg = embarcados.length > 0 ? (embAgingSum / embarcados.length).toFixed(1) : 0;
+                const embAgingSum = embarcadosHoje.reduce((acc, e) => acc + (Number(e.AGING) || 0), 0);
+                const embAgingAvg = embarcadosHoje.length > 0 ? (embAgingSum / embarcadosHoje.length).toFixed(1) : 0;
                 document.getElementById('emb-avg-badge').textContent = `avg ${embAgingAvg}d`;
 
                 // Faixas
