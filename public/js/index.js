@@ -1693,14 +1693,22 @@
                 agingCounts.forEach(b => {
                     const pct    = Math.round((b.count / maxAgingCount) * 100);
                     const pctTot = totalAgingVeic > 0 ? Math.round((b.count / totalAgingVeic) * 100) : 0;
+                    const presentationModeActive = document.body.classList.contains('presentation-mode');
+                    const labelWidth = presentationModeActive ? 168 : 60;
+                    const labelFontSize = presentationModeActive ? '1.85rem' : '0.68rem';
+                    const labelHtml = presentationModeActive
+                        ? `<div class="aging-band-main" style="font-size:${labelFontSize}; font-weight:900; color:${b.color}; font-family:'JetBrains Mono',monospace; letter-spacing:0.3px;">${b.label}</div>`
+                        : `
+                            <div class="aging-band-main" style="font-size:${labelFontSize}; font-weight:800; color:${b.color}; font-family:'JetBrains Mono',monospace;">${b.label}</div>
+                            <div class="aging-band-desc" style="font-size:0.55rem; color:#475569; margin-top:1px;">${b.desc}</div>
+                          `;
 
                     const row = document.createElement('div');
                     row.style.cssText = 'display:flex; align-items:center; gap:10px;';
                     row.innerHTML = `
                         <!-- Faixa label -->
-                        <div style="width:60px; flex-shrink:0; text-align:right;">
-                            <div style="font-size:0.68rem; font-weight:800; color:${b.color}; font-family:'JetBrains Mono',monospace;">${b.label}</div>
-                            <div style="font-size:0.55rem; color:#475569; margin-top:1px;">${b.desc}</div>
+                        <div style="width:${labelWidth}px; flex-shrink:0; text-align:right;">
+                            ${labelHtml}
                         </div>
 
                         <!-- Barra com segmento e glow -->
@@ -2025,13 +2033,21 @@
                 embCounts.forEach(b => {
                     const pct    = Math.round((b.count / maxEmbCount) * 100);
                     const pctTot = totalEmbAging > 0 ? Math.round((b.count / totalEmbAging) * 100) : 0;
+                    const presentationModeActive = document.body.classList.contains('presentation-mode');
+                    const labelWidth = presentationModeActive ? 168 : 60;
+                    const labelFontSize = presentationModeActive ? '1.85rem' : '0.68rem';
+                    const labelHtml = presentationModeActive
+                        ? `<div class="aging-band-main" style="font-size:${labelFontSize}; font-weight:900; color:${b.color}; font-family:'JetBrains Mono',monospace; letter-spacing:0.3px;">${b.label}</div>`
+                        : `
+                            <div class="aging-band-main" style="font-size:${labelFontSize}; font-weight:800; color:${b.color}; font-family:'JetBrains Mono',monospace;">${b.label}</div>
+                            <div class="aging-band-desc" style="font-size:0.55rem; color:#475569; margin-top:1px;">${b.desc}</div>
+                          `;
 
                     const row = document.createElement('div');
                     row.style.cssText = 'display:flex; align-items:center; gap:10px;';
                     row.innerHTML = `
-                        <div style="width:60px; flex-shrink:0; text-align:right;">
-                            <div style="font-size:0.68rem; font-weight:800; color:${b.color}; font-family:'JetBrains Mono',monospace;">${b.label}</div>
-                            <div style="font-size:0.55rem; color:#475569; margin-top:1px;">${b.desc}</div>
+                        <div style="width:${labelWidth}px; flex-shrink:0; text-align:right;">
+                            ${labelHtml}
                         </div>
                         <div style="flex:1; position:relative;">
                             <div style="height:22px; background:rgba(255,255,255,0.04); border-radius:6px; overflow:hidden; border:1px solid rgba(255,255,255,0.05);">

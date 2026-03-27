@@ -1181,15 +1181,34 @@
         }
         body.presentation-mode [data-presentation-card="aging-patio"] #aging-bands > div > div:first-child,
         body.presentation-mode [data-presentation-card="aging-embarcados"] #emb-aging-bands > div > div:first-child {
-            width: 106px !important;
+            width: 150px !important;
         }
         body.presentation-mode [data-presentation-card="aging-patio"] #aging-bands > div > div:first-child > div:first-child,
         body.presentation-mode [data-presentation-card="aging-embarcados"] #emb-aging-bands > div > div:first-child > div:first-child {
-            font-size: 0.95rem !important;
+            font-size: 1.34rem !important;
+            font-weight: 900 !important;
+            line-height: 1 !important;
+            letter-spacing: 0.35px !important;
         }
-        body.presentation-mode [data-presentation-card="aging-patio"] #aging-bands > div > div:first-child > div:last-child,
-        body.presentation-mode [data-presentation-card="aging-embarcados"] #emb-aging-bands > div > div:first-child > div:last-child {
-            font-size: 0.72rem !important;
+        body.presentation-mode [data-presentation-card="aging-patio"] .aging-band-main,
+        body.presentation-mode [data-presentation-card="aging-embarcados"] .aging-band-main {
+            font-size: 1.9rem !important;
+            font-weight: 900 !important;
+            letter-spacing: 0.45px !important;
+            line-height: 1 !important;
+        }
+        body.presentation-mode [data-presentation-card="aging-patio"] .aging-band-desc,
+        body.presentation-mode [data-presentation-card="aging-embarcados"] .aging-band-desc {
+            display: none !important;
+        }
+        body.presentation-mode :is(#aging-bands, #emb-aging-bands) .aging-band-main {
+            font-size: 1.34rem !important;
+            font-weight: 900 !important;
+            line-height: 1 !important;
+            letter-spacing: 0.35px !important;
+        }
+        body.presentation-mode :is(#aging-bands, #emb-aging-bands) .aging-band-desc {
+            display: none !important;
         }
         body.presentation-mode [data-presentation-card="aging-patio"] #aging-bands > div > div:nth-child(2) > div,
         body.presentation-mode [data-presentation-card="aging-embarcados"] #emb-aging-bands > div > div:nth-child(2) > div {
