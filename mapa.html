@@ -125,10 +125,22 @@
             <div class="card" data-presentation-card="resumo" style="padding:14px;">
                 <div class="ct">📦 Resumo</div>
                 <div class="kgrid">
-                    <div class="kmi"><div class="kml">Faturados</div><div class="kmv c" id="k-fat">0</div></div>
-                    <div class="kmi"><div class="kml">Estados</div><div class="kmv g" id="k-est">0</div></div>
-                    <div class="kmi"><div class="kml">Sem Local</div><div class="kmv w" id="k-sem">0</div></div>
-                    <div class="kmi"><div class="kml">Locais</div><div class="kmv" id="k-loc">0</div></div>
+                    <div class="kmi is-fat">
+                        <div class="khead"><span class="kicon" aria-hidden="true">🧾</span><div class="kml">Faturados</div></div>
+                        <div class="kmv c" id="k-fat">0</div>
+                    </div>
+                    <div class="kmi is-est">
+                        <div class="khead"><span class="kicon" aria-hidden="true">🗺️</span><div class="kml">Estados</div></div>
+                        <div class="kmv g" id="k-est">0</div>
+                    </div>
+                    <div class="kmi is-sem">
+                        <div class="khead"><span class="kicon" aria-hidden="true">⚠️</span><div class="kml">Sem Local</div></div>
+                        <div class="kmv w" id="k-sem">0</div>
+                    </div>
+                    <div class="kmi is-loc">
+                        <div class="khead"><span class="kicon" aria-hidden="true">📍</span><div class="kml">Locais</div></div>
+                        <div class="kmv" id="k-loc">0</div>
+                    </div>
                 </div>
             </div>
             <div class="card" data-presentation-card="top-estados" style="flex:1;display:flex;flex-direction:column;">

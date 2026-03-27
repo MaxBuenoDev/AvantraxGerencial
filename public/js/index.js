@@ -2058,8 +2058,8 @@
             rotateMs: 15000,
             timer: 0,
             groups: [
-                { label: '1/4 · Status faturamento + TP venda', cards: ['status-fat', 'tp-venda'] },
-                { label: '2/4 · Bloqueados + Heatmap aging', cards: ['bloqueados', 'aging-patio'] },
+                { label: '1/4 · Status faturamento + Bloqueados', cards: ['status-fat', 'bloqueados'] },
+                { label: '2/4 · TP venda + Heatmap aging', cards: ['tp-venda', 'aging-patio'] },
                 { label: '3/4 · Top transportadoras + Aging embarcados', cards: ['top-transportadoras', 'aging-embarcados'] },
                 { label: '4/4 · Top modelos + Veículos críticos', cards: ['top-modelos', 'veiculos-criticos'] },
             ],
