@@ -37,9 +37,30 @@ const SupabaseStore = {
     },
 
     makeStoragePath(type, fileName) {
-        const match = String(fileName || '').match(/\.([a-zA-Z0-9]+)$/);
-        const ext = (match?.[1] || 'xlsx').toLowerCase();
-        return `${type}/latest.${ext}`;
+        return `${type}/latest`;
+    },
+
+    isPermissionError(err) {
+        const code = String(err?.code || '').toLowerCase();
+        const msg = String(err?.message || '').toLowerCase();
+        const status = Number(err?.status || err?.statusCode || 0);
+        return status === 401
+            || status === 403
+            || code === '42501'
+            || msg.includes('permission denied')
+            || msg.includes('row-level security')
+            || msg.includes('not authorized');
+    },
+
+    buildUploadError(type, err) {
+        const status = Number(err?.status || err?.statusCode || 0);
+        const code = err?.code ? ` code=${err.code}` : '';
+        const statusPart = status ? ` status=${status}` : '';
+        const base = `[upload:${type}] ${err?.message || 'falha desconhecida'}${code}${statusPart}`;
+        if (this.isPermissionError(err)) {
+            return new Error(`${base}. Verifique politicas RLS do Supabase (storage.objects precisa SELECT+UPDATE para upsert, alem de INSERT para novos objetos).`);
+        }
+        return new Error(base);
     },
 
     async getLatestUpload(type) {
@@ -69,33 +90,18 @@ const SupabaseStore = {
     async uploadFile(type, file) {
         const supabase = this.getClient();
         if (!supabase) throw new Error('Supabase não configurado (VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY).');
+        if (!file) throw new Error(`Arquivo de ${type} não informado.`);
         const path = this.makeStoragePath(type, file?.name || `${type}.xlsx`);
         const table = type === 'embarcados' ? 'embarcados_uploads' : 'inventario_uploads';
 
-        const { data: currentRows, error: curErr } = await supabase
-            .from(table)
-            .select('storage_path');
-        if (curErr) throw curErr;
-
-        const existingPaths = (currentRows || [])
-            .map((r) => r?.storage_path)
-            .filter((p) => typeof p === 'string' && p.trim().length > 0);
-
-        if (existingPaths.length > 0) {
-            const { error: rmErr } = await supabase.storage.from(this.bucket).remove(existingPaths);
-            if (rmErr) console.warn(`[upload:${type}] falha ao remover arquivos antigos do bucket`, rmErr);
-        }
-
-        const { error: delErr } = await supabase
-            .from(table)
-            .delete()
-            .not('storage_path', 'is', null);
-        if (delErr) throw delErr;
-
         const { error: upErr } = await supabase.storage
             .from(this.bucket)
-            .upload(path, file, { upsert: true, contentType: file?.type || undefined });
-        if (upErr) throw upErr;
+            .upload(path, file, {
+                upsert: true,
+                contentType: file?.type || undefined,
+                cacheControl: '0',
+            });
+        if (upErr) throw this.buildUploadError(type, upErr);
         const payload = {
             file_name: file?.name || null,
             storage_path: path,
@@ -103,7 +109,19 @@ const SupabaseStore = {
             mime_type: file?.type || null,
         };
         const { error: insErr } = await supabase.from(table).insert([payload]);
-        if (insErr) throw insErr;
+        if (insErr) {
+            const isUniqueConflict = String(insErr?.code || '') === '23505'
+                || /duplicate key|unique/i.test(String(insErr?.message || ''));
+            if (!isUniqueConflict) {
+                throw new Error(`[upload:${type}] erro ao salvar metadata: ${insErr?.message || 'desconhecido'}`);
+            }
+
+            const { error: updErr } = await supabase
+                .from(table)
+                .update(payload)
+                .eq('storage_path', path);
+            if (updErr) throw new Error(`[upload:${type}] erro ao atualizar metadata existente: ${updErr?.message || 'desconhecido'}`);
+        }
         return payload;
     },
 };
@@ -1657,7 +1675,8 @@ window.addEventListener('load', async () => {
                     btn.textContent = 'ENVIANDO PARA SUPABASE...';
                     await SupabaseStore.uploadFile('inventario', invFile);
                 } catch (e) {
-                    console.warn('[mapa.html] Falha ao enviar para Supabase. Seguindo com dados locais.', e);
+                    console.error('[mapa.html] Falha ao enviar para Supabase. Seguindo com dados locais.', e);
+                    alert('Falha ao enviar para Supabase. O mapa seguirá com dados locais.\n\n' + (e?.message || e));
                 }
             }
             showDashboard(rows);
