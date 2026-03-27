@@ -2342,7 +2342,7 @@
                 { label: '1/4 · Status faturamento + Bloqueados', cards: ['status-fat', 'bloqueados'] },
                 { label: '2/4 · TP venda + Heatmap aging', cards: ['tp-venda', 'aging-patio'] },
                 { label: '3/4 · Top transportadoras + Aging embarcados', cards: ['top-transportadoras', 'aging-embarcados'] },
-                { label: '4/4 · Top modelos + Veículos críticos', cards: ['top-modelos', 'veiculos-criticos'] },
+                { label: '4/4 - Top modelos + Descargas de importados', cards: ['top-modelos', 'veiculos-criticos'] },
             ],
             cardMap: {},
             leftCard: null,
@@ -2408,7 +2408,6 @@
                 all.forEach((el) => { this.cardMap[el.dataset.presentationCard] = el; });
                 this.leftCard = this.cardMap['center-total'] || null;
             },
-
             ensureCriticalCard() {
                 if (this.criticalCard) return;
                 const grid = document.querySelector('.main-grid');
@@ -2419,16 +2418,69 @@
                 card.style.display = 'none';
                 card.innerHTML = `
                     <div class="card-header">
-                        <span class="card-title">Veículos Críticos</span>
+                        <span class="card-title">Descargas de Importados</span>
+                        <span id="presentation-importados-badge" style="font-size:0.7rem; padding:4px 10px; border-radius:999px; background:rgba(56,189,248,0.12); border:1px solid rgba(56,189,248,0.35); color:#67E8F9; font-weight:800; font-family:'JetBrains Mono',monospace;">7 dias</span>
                     </div>
-                    <div style="display:flex;flex:1;align-items:center;justify-content:center;flex-direction:column;gap:14px;">
-                        <div id="presentation-criticos-value" style="font-size:7rem;line-height:1;font-weight:900;color:#EF4444;font-family:'JetBrains Mono',monospace;text-shadow:0 0 24px rgba(239,68,68,.28);">0</div>
-                        <div style="font-size:1.02rem;color:#94A3B8;text-transform:uppercase;letter-spacing:1.2px;">Aging acima de 90 dias</div>
+                    <div id="presentation-importados-list" style="display:flex; flex-direction:column; gap:9px; flex:1; justify-content:center;"></div>
+                    <div id="presentation-importados-footer" style="margin-top:10px; padding-top:10px; border-top:1px solid rgba(255,255,255,0.08); font-size:0.8rem; color:#9FB4D1; letter-spacing:0.4px;">
+                        Base: inventario de patio - sufixo CEGONHA
                     </div>
                 `.trim();
                 grid.appendChild(card);
                 this.criticalCard = card;
                 this.cardMap['veiculos-criticos'] = card;
+            },
+
+            normalizeText(value) {
+                return String(value || '')
+                    .trim()
+                    .toUpperCase()
+                    .normalize('NFD')
+                    .replace(/[\u0300-\u036f]/g, '');
+            },
+
+            parseCreationDate(raw) {
+                if (raw === undefined || raw === null || raw === '') return null;
+                if (typeof raw === 'number' && Number.isFinite(raw)) {
+                    const utc = new Date(Date.UTC(1899, 11, 30) + raw * 86400000);
+                    if (isNaN(utc.getTime())) return null;
+                    return new Date(utc.getUTCFullYear(), utc.getUTCMonth(), utc.getUTCDate());
+                }
+                const text = String(raw).trim();
+                const br = text.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})/);
+                if (br) {
+                    const d = Number(br[1]);
+                    const m = Number(br[2]) - 1;
+                    const y = br[3].length === 2 ? 2000 + Number(br[3]) : Number(br[3]);
+                    const out = new Date(y, m, d);
+                    return isNaN(out.getTime()) ? null : out;
+                }
+                const parsed = new Date(text);
+                if (isNaN(parsed.getTime())) return null;
+                return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
+            },
+
+            getImportadoBucket(modelo) {
+                const m = this.normalizeText(modelo);
+                if (!m) return '';
+                if (m.includes('TRACKER')) return 'TRACKER';
+                if (m.includes('EQUINOX')) return 'EQUINOX';
+                if (m.includes('SILVERADO')) return 'SILVERADO';
+                return '';
+            },
+
+            formatDateDot(date) {
+                const dd = String(date.getDate()).padStart(2, '0');
+                const mm = String(date.getMonth() + 1).padStart(2, '0');
+                const yyyy = date.getFullYear();
+                return `${dd}.${mm}.${yyyy}`;
+            },
+
+            dayKey(date) {
+                const y = date.getFullYear();
+                const m = String(date.getMonth() + 1).padStart(2, '0');
+                const d = String(date.getDate()).padStart(2, '0');
+                return `${y}-${m}-${d}`;
             },
 
             readPersisted() {
@@ -2541,10 +2593,74 @@
                     label.textContent = `${g.label} · 15s`;
                 }
             },
-
             syncKPIs(stats) {
-                const v = document.getElementById('presentation-criticos-value');
-                if (v) v.textContent = Number(stats?.criticos || 0).toLocaleString('pt-BR');
+                const listEl = document.getElementById('presentation-importados-list');
+                if (!listEl) return;
+
+                const badgeEl = document.getElementById('presentation-importados-badge');
+                const footerEl = document.getElementById('presentation-importados-footer');
+                const inventario = DataService.getFiltered('inventario');
+
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                const days = Array.from({ length: 7 }, (_, idx) => {
+                    const d = new Date(today);
+                    d.setDate(today.getDate() - (6 - idx));
+                    return d;
+                });
+
+                const byDay = {};
+                days.forEach((d) => {
+                    byDay[this.dayKey(d)] = {
+                        date: d,
+                        TRACKER: 0,
+                        EQUINOX: 0,
+                        SILVERADO: 0,
+                        total: 0,
+                    };
+                });
+
+                inventario.forEach((row) => {
+                    const sufixo = this.normalizeText(row.SUFIXO);
+                    if (sufixo !== 'CEGONHA') return;
+
+                    const bucket = this.getImportadoBucket(row.MODELO);
+                    if (!bucket) return;
+
+                    const dtRaw = row.DATA_CRIACAO ?? row['DATA CRIACAO'] ?? row.DT_CRIACAO ?? row['DT CRIACAO'];
+                    const dt = this.parseCreationDate(dtRaw);
+                    if (!dt) return;
+
+                    const key = this.dayKey(dt);
+                    if (!byDay[key]) return;
+
+                    byDay[key][bucket] += 1;
+                    byDay[key].total += 1;
+                });
+
+                const rows = days.map((d) => byDay[this.dayKey(d)]);
+                const total7d = rows.reduce((sum, r) => sum + (r?.total || 0), 0);
+
+                listEl.innerHTML = '';
+                rows.forEach((r) => {
+                    const parts = [];
+                    if (r.TRACKER > 0) parts.push(`${r.TRACKER} ${r.TRACKER === 1 ? 'unidade' : 'unidades'} de TRACKER`);
+                    if (r.EQUINOX > 0) parts.push(`${r.EQUINOX} ${r.EQUINOX === 1 ? 'unidade' : 'unidades'} de EQUINOX`);
+                    if (r.SILVERADO > 0) parts.push(`${r.SILVERADO} ${r.SILVERADO === 1 ? 'unidade' : 'unidades'} de SILVERADO`);
+
+                    const sentence = parts.length ? `descarregou ${parts.join(' e ')}` : 'sem descargas de importados';
+                    const row = document.createElement('div');
+                    row.className = 'importados-day-row';
+                    row.innerHTML = `
+                        <div class="importados-day-date">${this.formatDateDot(r.date)}</div>
+                        <div class="importados-day-text">${sentence}</div>
+                        <div class="importados-day-total">${r.total.toLocaleString('pt-BR')}</div>
+                    `;
+                    listEl.appendChild(row);
+                });
+
+                if (badgeEl) badgeEl.textContent = `${total7d.toLocaleString('pt-BR')} unid. / 7 dias`;
+                if (footerEl) footerEl.textContent = 'Base: inventario de patio | filtro: SUFIXO=CEGONHA | modelos: TRACKER*, EQUINOX, SILVERADO';
             },
         };
 

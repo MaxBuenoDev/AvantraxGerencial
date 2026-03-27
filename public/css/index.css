@@ -1032,20 +1032,65 @@
 
         /* Dashboard presentation: readability per card */
         body.presentation-mode [data-presentation-card="veiculos-criticos"] .card-header {
-            margin-bottom: 14px;
+            margin-bottom: 12px;
+            align-items: center;
         }
         body.presentation-mode [data-presentation-card="veiculos-criticos"] .card-header .card-title {
-            font-size: 1.24rem;
+            font-size: 1.18rem;
+            letter-spacing: 0.6px;
         }
-        body.presentation-mode [data-presentation-card="veiculos-criticos"] #presentation-criticos-value {
-            font-size: clamp(6.8rem, 8.2vw, 9.4rem) !important;
-            line-height: 0.95 !important;
+        body.presentation-mode [data-presentation-card="veiculos-criticos"] #presentation-importados-list {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            justify-content: flex-start;
+            flex: 1 1 auto !important;
+            min-height: 0 !important;
+            overflow: hidden;
         }
-        body.presentation-mode [data-presentation-card="veiculos-criticos"] #presentation-criticos-value + div {
-            font-size: 1.12rem !important;
-            letter-spacing: 1.4px !important;
-            text-align: center;
-            color: #A9B9D3 !important;
+        body.presentation-mode [data-presentation-card="veiculos-criticos"] .importados-day-row {
+            display: grid;
+            grid-template-columns: 118px 1fr 46px;
+            gap: 8px;
+            align-items: center;
+            padding: 6px 10px;
+            border-radius: 10px;
+            background: linear-gradient(180deg, rgba(16,30,62,0.5), rgba(15,23,42,0.35));
+            border: 1px solid rgba(148,163,184,0.22);
+            min-height: 0;
+        }
+        body.presentation-mode [data-presentation-card="veiculos-criticos"] .importados-day-date {
+            font-size: 0.82rem;
+            font-weight: 800;
+            color: #67E8F9;
+            font-family: 'JetBrains Mono', monospace;
+            letter-spacing: 0.3px;
+        }
+        body.presentation-mode [data-presentation-card="veiculos-criticos"] .importados-day-text {
+            font-size: 0.84rem;
+            color: #D9E7F9;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        body.presentation-mode [data-presentation-card="veiculos-criticos"] .importados-day-total {
+            font-size: 1.05rem;
+            font-weight: 900;
+            color: #38BDF8;
+            text-align: right;
+            font-family: 'JetBrains Mono', monospace;
+        }
+        body.presentation-mode [data-presentation-card="veiculos-criticos"] #presentation-importados-footer {
+            font-size: 0.73rem !important;
+            color: #8FA6C5 !important;
+            margin-top: 8px !important;
+            padding-top: 8px !important;
+            flex: 0 0 auto !important;
+            min-height: 0 !important;
+        }
+        body.presentation-mode [data-presentation-card="veiculos-criticos"].presentation-slot-a > :not(.card-header),
+        body.presentation-mode [data-presentation-card="veiculos-criticos"].presentation-slot-b > :not(.card-header) {
+            flex: 0 0 auto;
         }
 
         body.presentation-mode [data-presentation-card="status-fat"] .fat-wrapper {
