@@ -38,7 +38,10 @@ const SupabaseStore = {
     },
 
     makeStoragePath(type, fileName) {
-        return `${type}/latest`;
+        const safeName = this.safePathSegment(fileName || `${type}.xlsx`) || `${type}.xlsx`;
+        const stamp = new Date().toISOString().replace(/[-:.TZ]/g, '');
+        const rand = Math.random().toString(36).slice(2, 8);
+        return `${type}/${stamp}-${rand}-${safeName}`;
     },
 
     isPermissionError(err) {
@@ -391,7 +394,17 @@ const RefreshController = {
             }
             console.log(`[refresh] inicio (${reason})`);
             try {
-                return await tryLoadFromSupabase({ silentUi: true, reason });
+                const reasonStr = String(reason || '');
+                const maxAttempts = (reasonStr.startsWith('realtime:') || reasonStr.startsWith('postMessage:')) ? 3 : 1;
+                for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+                    const ok = await tryLoadFromSupabase({ silentUi: true, reason });
+                    if (ok) return true;
+                    if (attempt < maxAttempts) {
+                        console.warn(`[refresh] tentativa ${attempt}/${maxAttempts} sem dados novos; aguardando retry`);
+                        await new Promise((resolve) => window.setTimeout(resolve, 700 * attempt));
+                    }
+                }
+                return false;
             } finally {
                 this.lastRefreshAt = Date.now();
                 console.log(`[refresh] fim (${reason})`);
