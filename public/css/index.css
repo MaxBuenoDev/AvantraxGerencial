@@ -586,7 +586,7 @@
         .fat-center-pct {
             font-size: 1.6rem;
             font-weight: 800;
-            color: var(--accent-cyan);
+            color: var(--success);
             font-family: 'JetBrains Mono', monospace;
             line-height: 1;
         }
@@ -638,7 +638,7 @@
             font-family: 'JetBrains Mono', monospace;
         }
 
-        .fat-num.is-fat { color: var(--accent-cyan); }
+        .fat-num.is-fat { color: var(--success); }
         .fat-num.is-nfat { color: var(--text-dim); }
 
         .fat-bar-track {
@@ -655,8 +655,8 @@
         }
 
         .fat-bar-fill.is-fat {
-            background: linear-gradient(90deg, #007BFF, #00BFFF);
-            box-shadow: 0 0 8px rgba(0,191,255,0.5);
+            background: linear-gradient(90deg, #059669, #10B981);
+            box-shadow: 0 0 8px rgba(16,185,129,0.45);
         }
 
         .fat-bar-fill.is-nfat {
@@ -1297,7 +1297,10 @@
 
         body.presentation-mode [data-presentation-card="tp-venda"] .card-header + div {
             gap: 28px !important;
-            justify-content: flex-start !important;
+            justify-content: center !important;
+            align-items: center !important;
+            width: 100%;
+            margin: 0 auto !important;
         }
         body.presentation-mode [data-presentation-card="tp-venda"] .card-header + div > div:first-child {
             width: 182px !important;
@@ -1311,6 +1314,7 @@
         body.presentation-mode [data-presentation-card="tp-venda"] .card-header + div > div:nth-child(2) {
             flex: 0 0 68% !important;
             max-width: 68% !important;
+            margin-right: 0 !important;
         }
         body.presentation-mode [data-presentation-card="tp-venda"] #tp-donut-val {
             font-size: 2rem !important;

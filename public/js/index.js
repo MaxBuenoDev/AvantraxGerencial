@@ -1538,8 +1538,8 @@
                 // Atualiza barras laterais
                 document.getElementById('fat-num-fat').textContent  = fatCount.toLocaleString('pt-BR');
                 document.getElementById('fat-num-nfat').textContent = nfatCount.toLocaleString('pt-BR');
-                document.getElementById('fat-sub-fat').textContent  = `de ${total.toLocaleString('pt-BR')} veículos`;
-                document.getElementById('fat-sub-nfat').textContent = 'aguardando expedição';
+                document.getElementById('fat-sub-fat').textContent  = 'Aguardando Expedição';
+                document.getElementById('fat-sub-nfat').textContent = 'Aguardando Faturamento';
 
                 // Anima barras com pequeno delay para fluidez
                 setTimeout(() => {
@@ -1588,8 +1588,8 @@
                         labels: ['Faturado', 'Não Faturado'],
                         datasets: [{
                             data: [fatCount, nfatCount],
-                            backgroundColor: ['#00BFFF', 'rgba(30,41,59,0.9)'],
-                            borderColor:     ['rgba(0,191,255,0.4)', 'rgba(255,255,255,0.04)'],
+                            backgroundColor: ['#10B981', 'rgba(30,41,59,0.9)'],
+                            borderColor:     ['rgba(16,185,129,0.42)', 'rgba(255,255,255,0.04)'],
                             borderWidth: [2, 1],
                             hoverOffset: 4,
                         }]
@@ -1609,9 +1609,9 @@
                                     }
                                 },
                                 backgroundColor: 'rgba(10,15,30,0.95)',
-                                borderColor:  'rgba(0,191,255,0.25)',
+                                borderColor:  'rgba(16,185,129,0.28)',
                                 borderWidth:  1,
-                                titleColor:   '#00BFFF',
+                                titleColor:   '#10B981',
                                 bodyColor:    '#E0E6ED',
                                 padding:      10,
                             }
