@@ -108,20 +108,10 @@ const SupabaseStore = {
             file_size: typeof file?.size === 'number' ? file.size : null,
             mime_type: file?.type || null,
         };
-        const { error: insErr } = await supabase.from(table).insert([payload]);
-        if (insErr) {
-            const isUniqueConflict = String(insErr?.code || '') === '23505'
-                || /duplicate key|unique/i.test(String(insErr?.message || ''));
-            if (!isUniqueConflict) {
-                throw new Error(`[upload:${type}] erro ao salvar metadata: ${insErr?.message || 'desconhecido'}`);
-            }
-
-            const { error: updErr } = await supabase
-                .from(table)
-                .update(payload)
-                .eq('storage_path', path);
-            if (updErr) throw new Error(`[upload:${type}] erro ao atualizar metadata existente: ${updErr?.message || 'desconhecido'}`);
-        }
+        const { error: metaErr } = await supabase
+            .from(table)
+            .upsert([payload], { onConflict: 'storage_path' });
+        if (metaErr) throw new Error(`[upload:${type}] erro ao salvar metadata (upsert por storage_path): ${metaErr?.message || 'desconhecido'}`);
         return payload;
     },
 };
