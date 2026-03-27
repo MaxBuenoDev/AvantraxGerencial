@@ -1296,19 +1296,24 @@
         }
 
         body.presentation-mode [data-presentation-card="tp-venda"] .card-header + div {
-            gap: 22px !important;
+            gap: 28px !important;
+            justify-content: flex-start !important;
         }
         body.presentation-mode [data-presentation-card="tp-venda"] .card-header + div > div:first-child {
-            width: 146px !important;
-            height: 146px !important;
+            width: 182px !important;
+            height: 182px !important;
             flex-shrink: 0;
         }
         body.presentation-mode [data-presentation-card="tp-venda"] #chart-tp-venda {
-            width: 146px !important;
-            height: 146px !important;
+            width: 182px !important;
+            height: 182px !important;
+        }
+        body.presentation-mode [data-presentation-card="tp-venda"] .card-header + div > div:nth-child(2) {
+            flex: 0 0 68% !important;
+            max-width: 68% !important;
         }
         body.presentation-mode [data-presentation-card="tp-venda"] #tp-donut-val {
-            font-size: 1.68rem !important;
+            font-size: 2rem !important;
         }
         body.presentation-mode [data-presentation-card="tp-venda"] #tp-donut-lbl {
             font-size: 0.68rem !important;
