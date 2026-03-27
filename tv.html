@@ -4,6 +4,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>AVANTRAX | TV</title>
+    <script src="/supabase-config.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <style>
       html,
@@ -566,11 +568,97 @@
         }
       }
 
-      function postRefresh(name) {
+      function postRefresh(name, meta = {}) {
         try {
-          frames[name]?.contentWindow?.postMessage({ type: "avantrax:refresh" }, "*");
+          frames[name]?.contentWindow?.postMessage(
+            {
+              type: "avantrax:refresh",
+              reason: String(meta.reason || ""),
+              version: meta.version || null,
+            },
+            "*"
+          );
         } catch (_) {}
       }
+
+      function refreshAllFramesNow(reason, version) {
+        postRefresh("index", { reason, version });
+        postRefresh("mapa", { reason, version });
+      }
+
+      const TvRealtimeSync = {
+        table: "dashboard_updates",
+        channel: null,
+        refreshLock: false,
+        refreshQueued: false,
+        lastVersion: "",
+        _timer: 0,
+        _client: null,
+
+        init() {
+          const url = window.SUPABASE_URL;
+          const key = window.SUPABASE_ANON_KEY;
+          const createClient = window.supabase?.createClient;
+          if (!url || !key || typeof createClient !== "function") return;
+
+          try {
+            this._client = createClient(url, key);
+          } catch (err) {
+            console.warn("[tv][realtime] falha ao criar cliente supabase", err);
+            return;
+          }
+
+          if (this.channel) {
+            try {
+              this._client.removeChannel(this.channel);
+            } catch (_) {}
+            this.channel = null;
+          }
+
+          const channelName = `avantrax-tv-dashboard-updates-${Date.now()}`;
+          this.channel = this._client
+            .channel(channelName)
+            .on("postgres_changes", { event: "INSERT", schema: "public", table: this.table }, (payload) => {
+              this.onEvent(payload?.new || {});
+            })
+            .subscribe();
+        },
+
+        onEvent(eventRow) {
+          const version = String(eventRow?.version || "");
+          if (version && this.lastVersion === version) return;
+          if (version) this.lastVersion = version;
+          console.log("[realtime] evento realtime recebido", eventRow || {});
+          this.scheduleRefresh(`tv-realtime:${eventRow?.event_type || "dashboard_updates"}`, version || null);
+        },
+
+        scheduleRefresh(reason, version) {
+          if (this._timer) clearTimeout(this._timer);
+          this._timer = setTimeout(() => {
+            this._timer = 0;
+            this.safeRefreshAllData(reason, version);
+          }, 120);
+        },
+
+        safeRefreshAllData(reason, version) {
+          if (this.refreshLock) {
+            this.refreshQueued = true;
+            return;
+          }
+          this.refreshLock = true;
+          console.log(`[refresh] inicio (${reason})`);
+          refreshAllFramesNow(reason, version);
+          console.log(`[refresh] fim (${reason})`);
+
+          setTimeout(() => {
+            this.refreshLock = false;
+            if (this.refreshQueued) {
+              this.refreshQueued = false;
+              this.safeRefreshAllData("tv-realtime:queued", this.lastVersion || null);
+            }
+          }, 450);
+        },
+      };
 
       function postScreenStart(name) {
         try {
@@ -700,7 +788,7 @@
           if (isManageOpen()) updateManageUI();
         }
         if (data.type === "avantrax:data_updated") {
-          postRefresh("mapa");
+          refreshAllFramesNow("postMessage:data_updated", Date.now());
         }
         if (data.type === "avantrax:manual_switch_open") {
           openManualNav();
@@ -734,7 +822,8 @@
       setActive("index");
       postScreenStart("index");
       postFilters("index");
-      postRefresh("index");
+      postRefresh("index", { reason: "tv:init" });
+      TvRealtimeSync.init();
 
       scheduleSwitch(DURATION_MS);
 

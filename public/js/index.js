@@ -206,6 +206,7 @@
 
         const SupabaseStore = {
             bucket: 'avantrax-files',
+            dashboardUpdatesTable: 'dashboard_updates',
             _client: null,
 
             getConfig() {
@@ -316,16 +317,70 @@
                 if (!supabase) return null;
                 const latest = await this.getLatestUpload(type);
                 if (!latest?.storage_path) return null;
-                const { data: blob, error } = await supabase.storage.from(this.bucket).download(latest.storage_path);
-                if (error) throw error;
+                const cacheBust = `${latest?.created_at || Date.now()}-${Date.now()}`;
+                const blob = await this.downloadBlobNoCache(latest.storage_path, cacheBust);
                 return { blob, meta: latest };
+            },
+
+            async downloadBlobNoCache(storagePath, cacheBustToken) {
+                const supabase = this.getClient();
+                if (!supabase) throw new Error('Supabase nÃ£o configurado.');
+
+                try {
+                    const { data: signed, error: signedErr } = await supabase.storage
+                        .from(this.bucket)
+                        .createSignedUrl(storagePath, 60);
+                    if (signedErr) throw signedErr;
+                    const signedUrl = signed?.signedUrl;
+                    if (!signedUrl) throw new Error('signed_url_ausente');
+
+                    const sep = signedUrl.includes('?') ? '&' : '?';
+                    const url = `${signedUrl}${sep}cb=${encodeURIComponent(cacheBustToken || Date.now())}`;
+                    const resp = await fetch(url, { cache: 'no-store' });
+                    if (!resp.ok) throw new Error(`signed_download_http_${resp.status}`);
+                    return await resp.blob();
+                } catch (signedDownloadErr) {
+                    const { data: blob, error } = await supabase.storage.from(this.bucket).download(storagePath);
+                    if (error) throw signedDownloadErr || error;
+                    return blob;
+                }
+            },
+
+            async publishDashboardUpdateEvent(eventType, version) {
+                const supabase = this.getClient();
+                if (!supabase) return null;
+
+                const evtType = String(eventType || 'dashboard_refresh');
+                const evtVersion = String(version || Date.now());
+                const nowIso = new Date().toISOString();
+                const candidates = [
+                    { event_type: evtType, version: evtVersion, created_at: nowIso },
+                    { event_type: evtType, version: evtVersion, timestamp: nowIso },
+                    { event_type: evtType, version: evtVersion },
+                ];
+
+                let lastError = null;
+                for (const payload of candidates) {
+                    const { error } = await supabase.from(this.dashboardUpdatesTable).insert([payload]);
+                    if (!error) {
+                        console.log('[realtime] evento realtime enviado', payload);
+                        return payload;
+                    }
+                    lastError = error;
+                    const msg = String(error?.message || '').toLowerCase();
+                    const looksLikeMissingColumn = msg.includes('column') && msg.includes('does not exist');
+                    if (!looksLikeMissingColumn) break;
+                }
+
+                throw new Error(`[dashboard_updates] falha ao enviar evento realtime: ${lastError?.message || 'desconhecido'}`);
             },
         };
 
         const RealtimeSync = {
             _channel: null,
-            _reloadTimer: 0,
+            _refreshTimer: 0,
             _onReload: null,
+            _lastVersion: null,
 
             init(onReload) {
                 if (!SupabaseStore.isConfigured()) return;
@@ -338,27 +393,30 @@
                     this._channel = null;
                 }
 
-                const channelName = `avantrax-upload-sync-index-${Date.now()}`;
+                const channelName = `avantrax-dashboard-updates-index-${Date.now()}`;
                 this._channel = supabase
                     .channel(channelName)
-                    .on('postgres_changes', { event: '*', schema: 'public', table: 'embarcados_uploads' }, () => {
-                        this.scheduleReload('embarcados_uploads');
-                    })
-                    .on('postgres_changes', { event: '*', schema: 'public', table: 'inventario_uploads' }, () => {
-                        this.scheduleReload('inventario_uploads');
+                    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: SupabaseStore.dashboardUpdatesTable }, (payload) => {
+                        this.scheduleReload('dashboard_updates', payload?.new || null);
                     })
                     .subscribe();
             },
 
-            scheduleReload(source) {
+            scheduleReload(source, eventPayload) {
                 if (!this._onReload) return;
-                if (this._reloadTimer) clearTimeout(this._reloadTimer);
-                this._reloadTimer = window.setTimeout(async () => {
-                    this._reloadTimer = 0;
+                const version = String(eventPayload?.version || '');
+                if (version && this._lastVersion === version) return;
+                if (version) this._lastVersion = version;
+
+                console.log('[realtime] evento realtime recebido', eventPayload || { source });
+
+                if (this._refreshTimer) clearTimeout(this._refreshTimer);
+                this._refreshTimer = window.setTimeout(async () => {
+                    this._refreshTimer = 0;
                     try {
-                        await this._onReload(source);
+                        await this._onReload(source, eventPayload || null);
                     } catch (_) {}
-                }, 500);
+                }, 120);
             },
         };
 
@@ -864,6 +922,11 @@
             _centerToggleTimer: 0,
             _embFile: null,
             _invFile: null,
+            _refreshInFlight: null,
+            _refreshQueued: false,
+            _refreshQueuedReason: '',
+            _lastRefreshAt: 0,
+            _minRefreshGapMs: 700,
 
             startCountdown(durationMs) {
                 this.stopCountdown();
@@ -962,6 +1025,65 @@
                 if (dash) dash.style.display = 'none';
             },
 
+            ensureDashboardVisible() {
+                const overlay = document.getElementById('upload-overlay');
+                const dash = document.getElementById('dashboard');
+                const shouldShow = dash && dash.style.display !== 'flex';
+                if (!shouldShow) return;
+
+                if (overlay) {
+                    overlay.style.opacity = '0';
+                    window.setTimeout(() => {
+                        overlay.style.display = 'none';
+                    }, 500);
+                }
+                dash.style.display = 'flex';
+                this.enterFullscreen();
+                this.startRotationToMap();
+                postReadyToParent();
+            },
+
+            async safeRefreshAllData(reason = 'manual') {
+                if (!SupabaseStore.isConfigured()) return false;
+                if (this._refreshInFlight) {
+                    this._refreshQueued = true;
+                    this._refreshQueuedReason = reason;
+                    return this._refreshInFlight;
+                }
+
+                const now = Date.now();
+                const waitMs = this._lastRefreshAt > 0
+                    ? Math.max(0, this._minRefreshGapMs - (now - this._lastRefreshAt))
+                    : 0;
+
+                this._refreshInFlight = (async () => {
+                    if (waitMs > 0) {
+                        await new Promise((resolve) => window.setTimeout(resolve, waitMs));
+                    }
+                    console.log(`[refresh] inicio (${reason})`);
+                    try {
+                        return await this.tryLoadFromSupabase({ silentUi: true, reason });
+                    } finally {
+                        this._lastRefreshAt = Date.now();
+                        console.log(`[refresh] fim (${reason})`);
+                    }
+                })();
+
+                try {
+                    return await this._refreshInFlight;
+                } finally {
+                    this._refreshInFlight = null;
+                    if (this._refreshQueued) {
+                        const queuedReason = this._refreshQueuedReason || 'queued';
+                        this._refreshQueued = false;
+                        this._refreshQueuedReason = '';
+                        window.setTimeout(() => {
+                            this.safeRefreshAllData(`queued:${queuedReason}`);
+                        }, 60);
+                    }
+                }
+            },
+
             async init() {
                 DataService.loadFilters();
                 if (TV_MODE) {
@@ -971,10 +1093,12 @@
                 this.setupCenterGadget();
                 this.setupUploadListeners();
                 this.setupFilters();
-                RealtimeSync.init(async () => {
-                    await this.tryLoadFromSupabase();
+                RealtimeSync.init(async (_source, eventPayload) => {
+                    const evtType = String(eventPayload?.event_type || 'dashboard_updates');
+                    const evtVersion = eventPayload?.version ? `#${eventPayload.version}` : '';
+                    await this.safeRefreshAllData(`realtime:${evtType}${evtVersion}`);
                 });
-                await this.tryLoadFromSupabase();
+                await this.safeRefreshAllData('startup');
             },
 
             setupCenterGadget() {
@@ -1011,9 +1135,13 @@
 
                 try { WeatherGadget.start(); } catch (_) {}
             },
-
-            async tryLoadFromSupabase() {
-                if (!SupabaseStore.isConfigured()) return;
+            async tryLoadFromSupabase(options = {}) {
+                if (!SupabaseStore.isConfigured()) return false;
+                const opts = options && typeof options === 'object' ? options : {};
+                const silentUi = Boolean(opts.silentUi);
+                const dashboardEl = document.getElementById('dashboard');
+                const isDashboardVisible = dashboardEl && dashboardEl.style.display === 'flex';
+                const shouldTouchUploadUi = !silentUi || !isDashboardVisible;
 
                 const btnStart = document.getElementById('btn-start');
                 const labelEmb = document.getElementById('label-embarcados');
@@ -1021,9 +1149,11 @@
                 const boxEmb = document.getElementById('box-embarcados');
                 const boxInv = document.getElementById('box-inventario');
 
-                if (labelEmb) labelEmb.textContent = 'Carregando do Supabase...';
-                if (labelInv) labelInv.textContent = 'Carregando do Supabase...';
-                if (btnStart) { btnStart.textContent = 'CARREGANDO...'; btnStart.disabled = true; }
+                if (shouldTouchUploadUi) {
+                    if (labelEmb) labelEmb.textContent = 'Carregando do Supabase...';
+                    if (labelInv) labelInv.textContent = 'Carregando do Supabase...';
+                    if (btnStart) { btnStart.textContent = 'CARREGANDO...'; btnStart.disabled = true; }
+                }
 
                 try {
                     const [emb, inv] = await Promise.all([
@@ -1032,16 +1162,20 @@
                     ]);
 
                     if (!emb?.blob || !inv?.blob) {
-                        if (btnStart) { btnStart.textContent = 'INICIAR DASHBOARD'; btnStart.disabled = true; }
-                        if (labelEmb) labelEmb.textContent = 'Clique para selecionar';
-                        if (labelInv) labelInv.textContent = 'Clique para selecionar';
-                        return;
+                        if (shouldTouchUploadUi) {
+                            if (btnStart) { btnStart.textContent = 'INICIAR DASHBOARD'; btnStart.disabled = true; }
+                            if (labelEmb) labelEmb.textContent = 'Clique para selecionar';
+                            if (labelInv) labelInv.textContent = 'Clique para selecionar';
+                        }
+                        return false;
                     }
 
-                    if (boxEmb) boxEmb.classList.add('loaded');
-                    if (boxInv) boxInv.classList.add('loaded');
-                    if (labelEmb) labelEmb.textContent = emb?.meta?.file_name || 'embarcados.xlsx';
-                    if (labelInv) labelInv.textContent = inv?.meta?.file_name || 'inventario_de_patio.xlsx';
+                    if (shouldTouchUploadUi) {
+                        if (boxEmb) boxEmb.classList.add('loaded');
+                        if (boxInv) boxInv.classList.add('loaded');
+                        if (labelEmb) labelEmb.textContent = emb?.meta?.file_name || 'embarcados.xlsx';
+                        if (labelInv) labelInv.textContent = inv?.meta?.file_name || 'inventario_de_patio.xlsx';
+                    }
 
                     const [dataEmb, dataInv] = await Promise.all([
                         Parser.parseFile(emb.blob, 'embarcados'),
@@ -1051,19 +1185,16 @@
                     DataService.setData('embarcados', dataEmb);
                     DataService.setData('inventario', dataInv);
                     this.renderAll();
-                    document.getElementById('upload-overlay').style.opacity = '0';
-                    setTimeout(() => {
-                        document.getElementById('upload-overlay').style.display = 'none';
-                        document.getElementById('dashboard').style.display = 'flex';
-                        this.enterFullscreen();
-                        this.startRotationToMap();
-                        postReadyToParent();
-                    }, 500);
+                    this.ensureDashboardVisible();
+                    return true;
                 } catch (err) {
                     console.warn('Falha ao carregar do Supabase. Mantendo upload manual.', err);
-                    if (btnStart) { btnStart.textContent = 'INICIAR DASHBOARD'; btnStart.disabled = true; }
-                    if (labelEmb) labelEmb.textContent = 'Clique para selecionar';
-                    if (labelInv) labelInv.textContent = 'Clique para selecionar';
+                    if (shouldTouchUploadUi) {
+                        if (btnStart) { btnStart.textContent = 'INICIAR DASHBOARD'; btnStart.disabled = true; }
+                        if (labelEmb) labelEmb.textContent = 'Clique para selecionar';
+                        if (labelInv) labelInv.textContent = 'Clique para selecionar';
+                    }
+                    return false;
                 }
             },
 
@@ -1112,6 +1243,7 @@
                         DataService.setData('embarcados', dataEmb);
                         DataService.setData('inventario', dataInv);
                         this.renderAll();
+                        console.log('[upload] upload concluido (processamento local) inventario + embarcados');
 
                         if (SupabaseStore.isConfigured()) {
                             try {
@@ -1120,6 +1252,12 @@
                                     SupabaseStore.uploadFile('embarcados', this._embFile),
                                     SupabaseStore.uploadFile('inventario', this._invFile),
                                 ]);
+                                console.log('[upload] upload concluido com sucesso no Supabase (inventario + embarcados)');
+                                try {
+                                    await SupabaseStore.publishDashboardUpdateEvent('inventory_embarcados_upload_completed', `${Date.now()}`);
+                                } catch (evtErr) {
+                                    console.warn('[realtime] nao foi possivel enviar evento realtime apos upload', evtErr);
+                                }
                                 if (TV_MODE) {
                                     try { window.parent?.postMessage({ type: 'avantrax:data_updated' }, '*'); } catch (_) {}
                                 }
@@ -1129,14 +1267,7 @@
                             }
                         }
 
-                        document.getElementById('upload-overlay').style.opacity = '0';
-                        setTimeout(() => {
-                            document.getElementById('upload-overlay').style.display = 'none';
-                            document.getElementById('dashboard').style.display = 'flex';
-                            this.enterFullscreen();
-                            this.startRotationToMap();
-                            postReadyToParent();
-                        }, 500);
+                        this.ensureDashboardVisible();
                     } catch (err) {
                         alert("Erro ao processar arquivos. Verifique o formato.");
                         console.error(err);
@@ -2402,7 +2533,8 @@
                 return;
             }
             if (data.type === 'avantrax:refresh') {
-                try { await DashboardRender.tryLoadFromSupabase(); } catch (_) {}
+                const reason = String(data.reason || data.source || 'postMessage');
+                try { await DashboardRender.safeRefreshAllData(`postMessage:${reason}`); } catch (_) {}
             }
             if (data.type === 'avantrax:screen_start') {
                 DashboardRender.startCountdown(data.durationMs);
@@ -3077,5 +3209,3 @@
                 this.hl.style.opacity = '1';
             },
         };
-    
-
