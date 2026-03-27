@@ -1057,7 +1057,7 @@
             color: #7F92B1;
         }
         body.presentation-mode [data-presentation-card="status-fat"] .fat-bar-track {
-            height: 4px;
+            height: 7px;
         }
         body.presentation-mode [data-presentation-card="status-fat"] .fat-today {
             margin-top: 12px;
@@ -1312,6 +1312,10 @@
         body.presentation-mode [data-presentation-card="tp-venda"] #tp-td-bar,
         body.presentation-mode [data-presentation-card="tp-venda"] #tp-pdi-bar {
             height: 100%;
+        }
+        body.presentation-mode [data-presentation-card="tp-venda"] .tp-bar-track {
+            height: 10px !important;
+            border-radius: 8px !important;
         }
         body.presentation-mode [data-presentation-card="tp-venda"] #tp-footer > div {
             padding: 4px 4px !important;
