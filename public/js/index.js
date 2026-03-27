@@ -2650,7 +2650,7 @@
 
                     const sentence = parts.length ? `descarregou ${parts.join(' e ')}` : 'sem descargas de importados';
                     const row = document.createElement('div');
-                    row.className = 'importados-day-row';
+                    row.className = `importados-day-row ${r.total > 0 ? 'has-discharge' : 'no-discharge'}`;
                     row.innerHTML = `
                         <div class="importados-day-date">${this.formatDateDot(r.date)}</div>
                         <div class="importados-day-text">${sentence}</div>
