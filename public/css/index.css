@@ -941,6 +941,28 @@
             text-align: center;
         }
 
+        body.presentation-mode .presentation-summary-card .psc-head {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        body.presentation-mode .presentation-summary-card .psc-icon {
+            width: 22px;
+            height: 22px;
+            border-radius: 7px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.78rem;
+            background: rgba(255,255,255,.08);
+            border: 1px solid rgba(255,255,255,.14);
+            box-shadow: 0 0 10px rgba(0,0,0,.18);
+            line-height: 1;
+            flex-shrink: 0;
+        }
+
         body.presentation-mode .presentation-summary-card .psc-label {
             font-size: 0.68rem;
             font-weight: 800;
@@ -967,6 +989,11 @@
             color: #34D399;
             text-shadow: 0 0 14px rgba(16,185,129,.28);
         }
+        body.presentation-mode .presentation-summary-card.is-green .psc-icon {
+            background: rgba(16,185,129,.2);
+            border-color: rgba(16,185,129,.38);
+            box-shadow: 0 0 12px rgba(16,185,129,.26);
+        }
 
         body.presentation-mode .presentation-summary-card.is-blue {
             border-color: rgba(0,191,255,.35);
@@ -976,6 +1003,11 @@
         body.presentation-mode .presentation-summary-card.is-blue .psc-value {
             color: #2BC7FF;
             text-shadow: 0 0 14px rgba(0,191,255,.28);
+        }
+        body.presentation-mode .presentation-summary-card.is-blue .psc-icon {
+            background: rgba(0,191,255,.2);
+            border-color: rgba(0,191,255,.38);
+            box-shadow: 0 0 12px rgba(0,191,255,.26);
         }
 
         /* Dashboard presentation: readability per card */
