@@ -1960,6 +1960,13 @@
 
                 document.getElementById('transp-total-badge').textContent = `${totalTransp} transp.`;
 
+                const transpColorMap = {
+                    TEGMA: '#F59E0B',
+                    JSL: '#EF4444',
+                    TRANSZERO: '#22C55E',
+                    BRAZUL: '#1E3A8A',
+                    TRANSAUTO: '#38BDF8'
+                };
                 const transpColors = ['#007BFF','#0099E6','#00BFFF','#3B82F6','#60A5FA'];
                 const transpRanks  = ['①','②','③','④','⑤'];
 
@@ -1969,7 +1976,8 @@
                 topTransp.forEach(([nome, qtd], idx) => {
                     const pctBar  = Math.round((qtd / maxTranspCount) * 100);
                     const pctTot  = totalInvTransp > 0 ? Math.round((qtd / totalInvTransp) * 100) : 0;
-                    const color   = transpColors[idx] || '#007BFF';
+                    const normalizedNome = String(nome || '').trim().toUpperCase();
+                    const color   = transpColorMap[normalizedNome] || transpColors[idx] || '#007BFF';
                     // Abrevia nome longo mantendo legível
                     const nomeExib = nome.length > 22 ? nome.substring(0, 20) + '…' : nome;
 

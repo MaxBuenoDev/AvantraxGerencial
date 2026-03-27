@@ -1268,50 +1268,70 @@
         }
 
         body.presentation-mode [data-presentation-card="top-modelos"] #modelos-list > div {
-            gap: 12px !important;
+            gap: 14px !important;
+            justify-content: center !important;
+        }
+        body.presentation-mode [data-presentation-card="top-modelos"] #modelos-list {
+            width: min(98%, 980px) !important;
+            margin: 0 auto !important;
         }
         body.presentation-mode [data-presentation-card="top-modelos"] #modelos-list > div > div:first-child {
-            width: 24px !important;
-            font-size: 0.98rem !important;
+            width: 30px !important;
+            font-size: 1.2rem !important;
+        }
+        body.presentation-mode [data-presentation-card="top-modelos"] #modelos-list > div > div:nth-child(2) {
+            flex: 0 0 82% !important;
+            max-width: 82% !important;
         }
         body.presentation-mode [data-presentation-card="top-modelos"] #modelos-list > div > div:nth-child(2) > div:first-child > span:first-child {
-            font-size: 0.98rem !important;
-            max-width: 330px !important;
+            font-size: 1.2rem !important;
+            max-width: 450px !important;
+            font-weight: 800 !important;
         }
         body.presentation-mode [data-presentation-card="top-modelos"] #modelos-list > div > div:nth-child(2) > div:first-child > span:last-child {
-            font-size: 1.02rem !important;
+            font-size: 1.28rem !important;
         }
         body.presentation-mode [data-presentation-card="top-modelos"] #modelos-list > div > div:nth-child(2) > div:last-child {
-            height: 8px !important;
+            height: 10px !important;
         }
         body.presentation-mode [data-presentation-card="top-modelos"] #modelos-list > div > div:last-child {
-            width: 56px !important;
-            font-size: 0.86rem !important;
+            width: 68px !important;
+            font-size: 1rem !important;
+            font-weight: 700 !important;
         }
 
         body.presentation-mode [data-presentation-card="top-transportadoras"] #transp-list {
-            gap: 10px !important;
+            gap: 12px !important;
+            width: min(98%, 980px) !important;
+            margin: 0 auto !important;
         }
         body.presentation-mode [data-presentation-card="top-transportadoras"] #transp-list > div {
-            gap: 12px !important;
+            gap: 14px !important;
+            justify-content: center !important;
         }
         body.presentation-mode [data-presentation-card="top-transportadoras"] #transp-list > div > div:first-child {
-            width: 24px !important;
-            font-size: 1rem !important;
+            width: 30px !important;
+            font-size: 1.22rem !important;
+        }
+        body.presentation-mode [data-presentation-card="top-transportadoras"] #transp-list > div > div:nth-child(2) {
+            flex: 0 0 82% !important;
+            max-width: 82% !important;
         }
         body.presentation-mode [data-presentation-card="top-transportadoras"] #transp-list > div > div:nth-child(2) > div:first-child > span:first-child {
-            font-size: 0.96rem !important;
-            max-width: 320px !important;
+            font-size: 1.18rem !important;
+            max-width: 440px !important;
+            font-weight: 800 !important;
         }
         body.presentation-mode [data-presentation-card="top-transportadoras"] #transp-list > div > div:nth-child(2) > div:first-child > span:last-child {
-            font-size: 1.08rem !important;
+            font-size: 1.3rem !important;
         }
         body.presentation-mode [data-presentation-card="top-transportadoras"] #transp-list > div > div:nth-child(2) > div:last-child {
-            height: 8px !important;
+            height: 10px !important;
         }
         body.presentation-mode [data-presentation-card="top-transportadoras"] #transp-list > div > div:last-child {
-            width: 54px !important;
-            font-size: 0.86rem !important;
+            width: 68px !important;
+            font-size: 1rem !important;
+            font-weight: 700 !important;
             color: #8DA6C7 !important;
         }
 
