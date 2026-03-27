@@ -85,6 +85,29 @@
             padding:10px 22px;background:var(--bg-card);border-radius:14px;
             border:1px solid var(--border);backdrop-filter:blur(10px);flex-shrink:0;
         }
+        body.top-info-hidden header{
+            justify-content:flex-start;
+            gap:14px;
+            padding:8px 14px;
+        }
+        body.top-info-hidden .hbadge,
+        body.top-info-hidden .presentation-controls,
+        body.top-info-hidden .cdown{
+            display:none !important;
+        }
+        body.top-info-hidden header > div:last-child{
+            margin-left:auto;
+        }
+        body.top-info-hidden .clock{
+            transform:scale(.86);
+            transform-origin:right center;
+        }
+        body.top-info-hidden #cur-time{
+            font-size:1.05rem;
+        }
+        body.top-info-hidden #cur-date{
+            font-size:.72rem;
+        }
         .logo{display:flex;align-items:center;gap:14px;}
         .logo h2{font-weight:800;font-size:1.7rem;
             background:linear-gradient(to right,#fff,var(--cyan));

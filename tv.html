@@ -555,6 +555,15 @@
       let filters = { montadora: "", proprietario: "" };
       let current = "index";
       let manageInitDone = false;
+      let topInfoHidden = false;
+
+      function readTopInfoHidden() {
+        try {
+          return localStorage.getItem("AVANTRAX_TOP_INFO_HIDDEN") === "1";
+        } catch (_) {
+          return false;
+        }
+      }
 
       function setActive(name) {
         Object.entries(frames).forEach(([k, el]) => {
@@ -678,6 +687,23 @@
         } catch (_) {}
       }
 
+      function postTopInfo(name) {
+        try {
+          frames[name]?.contentWindow?.postMessage(
+            { type: "avantrax:top_info_set", hidden: !!topInfoHidden },
+            "*"
+          );
+        } catch (_) {}
+      }
+
+      function setTopInfoHidden(value) {
+        topInfoHidden = !!value;
+        try {
+          localStorage.setItem("AVANTRAX_TOP_INFO_HIDDEN", topInfoHidden ? "1" : "0");
+        } catch (_) {}
+        Object.keys(frames).forEach((name) => postTopInfo(name));
+      }
+
       function broadcastPick(enabled) {
         // Only the active frame needs to be pick-enabled, but disable all first for safety.
         Object.keys(frames).forEach((name) => postPick(name, false));
@@ -761,6 +787,11 @@
 
       window.addEventListener("keydown", (e) => {
         const key = String(e.key || "").toLowerCase();
+        if (e.ctrlKey && e.shiftKey && key === "h") {
+          e.preventDefault();
+          setTopInfoHidden(!topInfoHidden);
+          return;
+        }
         if (e.ctrlKey && e.shiftKey && key === "p") {
           e.preventDefault();
           isManualOpen() ? closeManualNav() : openManualNav();
@@ -781,9 +812,18 @@
       window.addEventListener("message", (e) => {
         const data = e && e.data;
         if (!data || typeof data !== "object") return;
+        if (data.type === "avantrax:top_info_toggle") {
+          setTopInfoHidden(!topInfoHidden);
+          return;
+        }
+        if (data.type === "avantrax:top_info_set") {
+          setTopInfoHidden(Boolean(data.hidden));
+          return;
+        }
         if (data.type === "avantrax:ready" && (data.page === "index" || data.page === "mapa")) {
           ready[data.page] = true;
           postFilters(data.page);
+          postTopInfo(data.page);
           if (isManualOpen()) updateManualUI();
           if (isManageOpen()) updateManageUI();
         }
@@ -815,6 +855,7 @@
         frames[name].addEventListener("load", () => {
           postScreenStart(name);
           postFilters(name);
+          postTopInfo(name);
           postRefresh(name);
         });
       });
@@ -823,6 +864,7 @@
       postScreenStart("index");
       postFilters("index");
       postRefresh("index", { reason: "tv:init" });
+      setTopInfoHidden(readTopInfoHidden());
       TvRealtimeSync.init();
 
       scheduleSwitch(DURATION_MS);

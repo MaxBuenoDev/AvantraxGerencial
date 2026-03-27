@@ -3,6 +3,37 @@ import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 
 const TV_MODE = new URLSearchParams(window.location.search).has('tv');
 
+const TopInfoVisibility = {
+    storageKey: 'AVANTRAX_TOP_INFO_HIDDEN',
+    hidden: false,
+
+    init() {
+        this.hidden = this.readPersisted();
+        this.apply(this.hidden, { persist: false });
+        window.addEventListener('storage', (e) => {
+            if (e.key !== this.storageKey) return;
+            this.apply(e.newValue === '1', { persist: false });
+        });
+    },
+
+    readPersisted() {
+        try { return localStorage.getItem(this.storageKey) === '1'; } catch (_) { return false; }
+    },
+
+    apply(hidden, { persist = true } = {}) {
+        this.hidden = Boolean(hidden);
+        document.body.classList.toggle('top-info-hidden', this.hidden);
+        if (persist) {
+            try { localStorage.setItem(this.storageKey, this.hidden ? '1' : '0'); } catch (_) {}
+        }
+        return this.hidden;
+    },
+
+    toggle() {
+        return this.apply(!this.hidden);
+    },
+};
+
 const SupabaseStore = {
     bucket: 'avantrax-files',
     dashboardUpdatesTable: 'dashboard_updates',
@@ -610,6 +641,15 @@ const FiltersUI = {
         window.addEventListener('keydown', (e) => {
             const key = String(e.key || '').toLowerCase();
             if (e.ctrlKey && e.shiftKey && key === 'f') { e.preventDefault(); toggle(); }
+            if (e.ctrlKey && e.shiftKey && key === 'h') {
+                e.preventDefault();
+                if (TV_MODE) {
+                    try { window.parent?.postMessage({ type: 'avantrax:top_info_toggle' }, '*'); } catch (_) { TopInfoVisibility.toggle(); }
+                } else {
+                    TopInfoVisibility.toggle();
+                }
+                return;
+            }
             if (e.ctrlKey && e.shiftKey && key === 'p') {
                 e.preventDefault();
                 try { window.parent?.postMessage({ type: 'avantrax:manual_switch_open' }, '*'); } catch (_) {}
@@ -1799,6 +1839,7 @@ const PresentationMapa = {
 // INIT
 // ════════════════════════════════════════════════════════════════
 window.addEventListener('load', async () => {
+    TopInfoVisibility.init();
     initParticles();
     ViewportScale.apply();
     startClock();
@@ -1891,6 +1932,10 @@ window.addEventListener('message', async (e) => {
     if (!TV_MODE) return;
     const data = e?.data;
     if (!data || typeof data !== 'object') return;
+    if (data.type === 'avantrax:top_info_set') {
+        TopInfoVisibility.apply(Boolean(data.hidden));
+        return;
+    }
     if (data.type === 'avantrax:pick_enable') {
         try { FieldPicker.setEnabled(Boolean(data.enabled)); } catch (_) {}
         return;

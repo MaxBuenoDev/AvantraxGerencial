@@ -163,6 +163,26 @@
             border: 1px solid var(--glass-border);
             backdrop-filter: blur(10px);
         }
+        body.top-info-hidden header {
+            justify-content: flex-start;
+            gap: 18px;
+            padding: 8px 14px;
+        }
+        body.top-info-hidden .status-badges,
+        body.top-info-hidden .presentation-controls {
+            display: none !important;
+        }
+        body.top-info-hidden .clock-area {
+            margin-left: auto;
+            transform: scale(0.86);
+            transform-origin: right center;
+        }
+        body.top-info-hidden #current-time {
+            font-size: 1.1rem;
+        }
+        body.top-info-hidden #current-date {
+            font-size: 0.72rem;
+        }
 
         .logo-area {
             display: flex;
