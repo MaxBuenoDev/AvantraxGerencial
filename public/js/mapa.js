@@ -186,6 +186,63 @@ const REGION_COLOR = {
     'Sul':          {a:'rgba(59,130,246,',  b:'#3B82F6'},
 };
 
+const COUNTRY_CODE_META = {
+    BRA: { code: 'BRA', name: 'Brasil',    iso2: 'br' },
+    PAR: { code: 'PAR', name: 'Paraguai',  iso2: 'py' },
+    BOL: { code: 'BOL', name: 'Bolivia',   iso2: 'bo' },
+    ARG: { code: 'ARG', name: 'Argentina', iso2: 'ar' },
+    CHI: { code: 'CHI', name: 'Chile',     iso2: 'cl' },
+    COL: { code: 'COL', name: 'Colombia',  iso2: 'co' },
+    PER: { code: 'PER', name: 'Peru',      iso2: 'pe' },
+};
+
+const COUNTRY_ALIAS_TO_CODE = {
+    BRA: 'BRA',
+    BR: 'BRA',
+    BRASIL: 'BRA',
+    BRAZIL: 'BRA',
+    ARG: 'ARG',
+    AR: 'ARG',
+    ARGENTINA: 'ARG',
+    PAR: 'PAR',
+    PY: 'PAR',
+    PARAGUAI: 'PAR',
+    PARAGUAY: 'PAR',
+    BOL: 'BOL',
+    BO: 'BOL',
+    BOLIVIA: 'BOL',
+    CHI: 'CHI',
+    CL: 'CHI',
+    CHILE: 'CHI',
+    COL: 'COL',
+    CO: 'COL',
+    COLOMBIA: 'COL',
+    PER: 'PER',
+    PE: 'PER',
+    PERU: 'PER',
+};
+
+function normalizeCountryToken(value) {
+    return normalizeComp(value).replace(/[^A-Z0-9]/g, '');
+}
+
+function resolveCountryMeta(value) {
+    const raw = String(value || '').trim();
+    if (!raw) return null;
+    const token = normalizeCountryToken(raw);
+    if (!token) return null;
+    const knownCode = COUNTRY_ALIAS_TO_CODE[token] || COUNTRY_ALIAS_TO_CODE[token.slice(0, 3)];
+    if (knownCode && COUNTRY_CODE_META[knownCode]) return COUNTRY_CODE_META[knownCode];
+    const fallbackCode = token.slice(0, 3);
+    if (!fallbackCode) return null;
+    return { code: fallbackCode, name: raw, iso2: '' };
+}
+
+function getCountryFlagUrl(meta) {
+    if (!meta?.iso2) return '';
+    return `https://flagcdn.com/w40/${meta.iso2}.png`;
+}
+
 // ════════════════════════════════════════════════════════════════
 // STATE → UF DETECTION
 // ════════════════════════════════════════════════════════════════
@@ -704,8 +761,8 @@ function processInventario(rows) {
     const vehicles = [];
 
     fat.forEach(r => {
-        const pais = cPais ? String(r[cPais]||'').trim() : '';
-        if (pais) countryMap[pais] = (countryMap[pais]||0) + 1;
+        const paisMeta = cPais ? resolveCountryMeta(r[cPais]) : null;
+        if (paisMeta?.code) countryMap[paisMeta.code] = (countryMap[paisMeta.code] || 0) + 1;
         const local = localKey ? String(r[localKey]||'').trim() : '';
         if (!local || local === 'undefined') { semLocal++; return; }
         localMap[local] = (localMap[local]||0) + 1;
@@ -956,19 +1013,34 @@ function renderTopCountries() {
     const el = document.getElementById('top-countries');
     if (!el) return;
     if (!sorted.length) { el.innerHTML='<div class="nodata"><span>📊</span>Nenhum país identificado</div>'; return; }
-    const max = sorted[0][1];
     el.innerHTML='';
-    sorted.forEach(([pais,cnt],i)=>{
-        const pct = (cnt/max*100).toFixed(0);
+    sorted.forEach(([countryCode,cnt],i)=>{
+        const meta = COUNTRY_CODE_META[countryCode] || { code: countryCode, name: countryCode, iso2: '' };
+        const flagUrl = getCountryFlagUrl(meta);
+        const rank = i + 1;
+        const rankClass = rank === 1 ? 'rank-1' : rank === 2 ? 'rank-2' : rank === 3 ? 'rank-3' : 'rank-n';
         const row = document.createElement('div');
-        row.className='srow';
-        row.innerHTML=`<div class="srnk">${i+1}</div>
-        <div class="snm" title="${pais}">${pais}</div>
-        <div class="strack"><div class="sfill" data-w="${pct}" style="width:0%;background:linear-gradient(90deg,var(--blue)77,var(--cyan));"></div></div>
-        <div class="scnt">${cnt}</div>`;
+        row.className = `ctry-card ${rankClass}`;
+        row.innerHTML = `
+            <div class="ctry-top">
+                <div class="ctry-rank">${rank}</div>
+                <span class="ctry-flag" aria-hidden="true">
+                    ${flagUrl
+                        ? `<img class="ctry-flag-img" src="${flagUrl}" alt="${meta.name}" loading="lazy" decoding="async" onerror="this.style.display='none'; this.parentElement.classList.add('is-fallback'); this.parentElement.textContent='${meta.code.slice(0,2)}';">`
+                        : meta.code.slice(0,2)}
+                </span>
+                <div class="ctry-meta" title="${meta.name}">
+                    <div class="ctry-code">${meta.code}</div>
+                    <div class="ctry-name">${meta.name}</div>
+                </div>
+            </div>
+            <div class="ctry-bottom">
+                <div class="ctry-total-label">Total</div>
+                <div class="ctry-total">${cnt.toLocaleString('pt-BR')}</div>
+            </div>
+        `;
         el.appendChild(row);
     });
-    setTimeout(()=>{ el.querySelectorAll('.sfill').forEach(b=>b.style.width=b.dataset.w+'%'); },100);
 }
 
 function renderTopStates() {
