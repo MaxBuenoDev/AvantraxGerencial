@@ -1,20 +1,17 @@
 <div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+  <img src="./public/logoAvantrax.png" alt="Logo Avantrax" width="180" />
 </div>
 
-# Run and deploy your AI Studio app
+# Avantrax Gerencial
 
-This contains everything you need to run your app locally.
+Painel operacional da Avantrax para acompanhamento de indicadores em tempo real, com visualizacao em dashboard e mapa.
+O projeto inclui modo TV com alternancia automatica de telas, navegacao manual por atalho e recursos de apoio a gestao/exportacao.
 
-View your app in AI Studio: https://ai.studio/apps/e2ffb6af-3bfb-41e7-b3dd-0955dc9ab2d4
+## Executar localmente
 
-## Run Locally
+**Prerequisito:** Node.js
 
-**Prerequisites:**  Node.js
-
-
-1. Install dependencies:
+1. Instale as dependencias:
    `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
+2. Inicie o projeto:
    `npm run dev`
