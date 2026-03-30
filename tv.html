@@ -467,6 +467,7 @@
           <span>Enter = Próxima • Esc = Fechar</span>
         </div>
         <div class="actions">
+          <button class="mn-btn" id="mn-time-toggle" type="button">Pausar tempo</button>
           <button class="mn-btn" id="mn-close" type="button">Fechar</button>
           <button class="mn-btn primary" id="mn-go" type="button">Ir para próxima</button>
         </div>
@@ -730,7 +731,15 @@
       }
 
       let switchTimer = null;
+      let autoSwitchEnabled = true;
       function scheduleSwitch(ms = DURATION_MS) {
+        if (!autoSwitchEnabled) {
+          if (switchTimer) {
+            clearTimeout(switchTimer);
+            switchTimer = null;
+          }
+          return;
+        }
         if (switchTimer) clearTimeout(switchTimer);
         switchTimer = setTimeout(() => {
           try {
@@ -744,6 +753,7 @@
       const manualOverlay = document.getElementById("manual-nav-overlay");
       const mnCurrent = document.getElementById("mn-current");
       const mnNext = document.getElementById("mn-next");
+      const mnTimeToggle = document.getElementById("mn-time-toggle");
       const mnClose = document.getElementById("mn-close");
       const mnGo = document.getElementById("mn-go");
 
@@ -757,6 +767,19 @@
         if (mnNext) mnNext.textContent = next === "index" ? "Dashboard" : "Mapa";
         if (mnGo) mnGo.disabled = !ready[next];
         if (mnGo) mnGo.textContent = ready[next] ? "Ir para próxima" : "Carregando…";
+        if (mnTimeToggle) mnTimeToggle.textContent = autoSwitchEnabled ? "Pausar tempo" : "Ativar tempo";
+      }
+
+      function setAutoSwitchEnabled(enabled) {
+        autoSwitchEnabled = !!enabled;
+        if (!autoSwitchEnabled && switchTimer) {
+          clearTimeout(switchTimer);
+          switchTimer = null;
+        }
+        if (autoSwitchEnabled) {
+          scheduleSwitch(DURATION_MS);
+        }
+        updateManualUI();
       }
 
       function openManualNav() {
@@ -776,7 +799,7 @@
         if (!ready[next]) return;
         closeManualNav();
         trySwitch();
-        scheduleSwitch(DURATION_MS);
+        if (autoSwitchEnabled) scheduleSwitch(DURATION_MS);
       }
 
       manualOverlay.addEventListener("click", (e) => {
@@ -784,6 +807,7 @@
       });
       mnClose.addEventListener("click", closeManualNav);
       mnGo.addEventListener("click", goNextManual);
+      mnTimeToggle.addEventListener("click", () => setAutoSwitchEnabled(!autoSwitchEnabled));
 
       window.addEventListener("keydown", (e) => {
         const key = String(e.key || "").toLowerCase();
