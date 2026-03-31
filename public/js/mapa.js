@@ -73,6 +73,7 @@ const TopInfoVisibility = {
 const SupabaseStore = {
     bucket: 'avantrax-files',
     dashboardUpdatesTable: 'dashboard_updates',
+    cleanupRpcName: 'cleanup_upload_history',
     _client: null,
 
     getConfig() {
@@ -93,6 +94,10 @@ const SupabaseStore = {
         if (!url || !key) return null;
         this._client = createClient(url, key);
         return this._client;
+    },
+
+    tableForType(type) {
+        return type === 'embarcados' ? 'embarcados_uploads' : 'inventario_uploads';
     },
 
     safePathSegment(value) {
@@ -137,7 +142,7 @@ const SupabaseStore = {
     async getLatestUpload(type) {
         const supabase = this.getClient();
         if (!supabase) return null;
-        const table = type === 'embarcados' ? 'embarcados_uploads' : 'inventario_uploads';
+        const table = this.tableForType(type);
         const { data, error } = await supabase
             .from(table)
             .select('file_name, storage_path, created_at, file_size, mime_type')
@@ -187,7 +192,7 @@ const SupabaseStore = {
         if (!supabase) throw new Error('Supabase não configurado (VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY).');
         if (!file) throw new Error(`Arquivo de ${type} não informado.`);
         const path = this.makeStoragePath(type, file?.name || `${type}.xlsx`);
-        const table = type === 'embarcados' ? 'embarcados_uploads' : 'inventario_uploads';
+        const table = this.tableForType(type);
 
         const { error: upErr } = await supabase.storage
             .from(this.bucket)
@@ -207,7 +212,29 @@ const SupabaseStore = {
             .from(table)
             .insert([payload]);
         if (metaErr) throw new Error(`[upload:${type}] erro ao salvar metadata: ${metaErr?.message || 'desconhecido'}`);
+        await this.tryCleanupUploadHistory(type, 1);
         return payload;
+    },
+
+    async tryCleanupUploadHistory(type, keep = 1) {
+        const supabase = this.getClient();
+        if (!supabase) return;
+        try {
+            const { error } = await supabase.rpc(this.cleanupRpcName, {
+                p_type: String(type || ''),
+                p_keep: Number(keep || 1),
+            });
+            if (!error) return;
+            const msg = String(error?.message || '').toLowerCase();
+            const missingFn = msg.includes('function') && msg.includes('does not exist');
+            if (missingFn) {
+                console.warn(`[cleanup:${type}] função RPC ausente (${this.cleanupRpcName}). Upload seguirá sem limpeza automática.`);
+                return;
+            }
+            console.warn(`[cleanup:${type}] falha na limpeza automática`, error);
+        } catch (err) {
+            console.warn(`[cleanup:${type}] erro inesperado na limpeza automática`, err);
+        }
     },
 
     async publishDashboardUpdateEvent(eventType, version) {

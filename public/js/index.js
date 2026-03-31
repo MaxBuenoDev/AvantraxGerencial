@@ -274,6 +274,7 @@
         const SupabaseStore = {
             bucket: 'avantrax-files',
             dashboardUpdatesTable: 'dashboard_updates',
+            cleanupRpcName: 'cleanup_upload_history',
             _client: null,
 
             getConfig() {
@@ -365,7 +366,29 @@
                     .from(tableName)
                     .insert([payload]);
                 if (metaErr) throw new Error(`[upload:${type}] erro ao salvar metadata: ${metaErr?.message || 'desconhecido'}`);
+                await this.tryCleanupUploadHistory(type, 1);
                 return payload;
+            },
+
+            async tryCleanupUploadHistory(type, keep = 1) {
+                const supabase = this.getClient();
+                if (!supabase) return;
+                try {
+                    const { error } = await supabase.rpc(this.cleanupRpcName, {
+                        p_type: String(type || ''),
+                        p_keep: Number(keep || 1),
+                    });
+                    if (!error) return;
+                    const msg = String(error?.message || '').toLowerCase();
+                    const missingFn = msg.includes('function') && msg.includes('does not exist');
+                    if (missingFn) {
+                        console.warn(`[cleanup:${type}] função RPC ausente (${this.cleanupRpcName}). Upload seguirá sem limpeza automática.`);
+                        return;
+                    }
+                    console.warn(`[cleanup:${type}] falha na limpeza automática`, error);
+                } catch (err) {
+                    console.warn(`[cleanup:${type}] erro inesperado na limpeza automática`, err);
+                }
             },
 
             async getLatestUpload(type) {
