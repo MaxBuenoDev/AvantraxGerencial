@@ -4,6 +4,14 @@
         const qs = new URLSearchParams(window.location.search);
         const TV_MODE = qs.has('tv');
         const STANDALONE_MODE = qs.has('standalone');
+        const MESSAGE_ORIGIN = window.location.origin;
+
+        const escapeHtml = (value) => String(value ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
 
         if (!TV_MODE && !STANDALONE_MODE) {
             window.location.replace('tv.html');
@@ -298,7 +306,7 @@
                 const statusPart = status ? ` status=${status}` : '';
                 const base = `[upload:${type}] ${err?.message || 'falha desconhecida'}${code}${statusPart}`;
                 if (this.isPermissionError(err)) {
-                    return new Error(`${base}. Verifique politicas RLS do Supabase (storage.objects precisa SELECT+UPDATE para upsert, alem de INSERT para novos objetos).`);
+                    return new Error(`${base}. Verifique politicas RLS do Supabase (storage.objects precisa INSERT para upload e SELECT para leitura).`);
                 }
                 return new Error(base);
             },
@@ -313,7 +321,7 @@
                 const { error: upErr } = await supabase.storage
                     .from(this.bucket)
                     .upload(path, file, {
-                        upsert: true,
+                        upsert: false,
                         contentType: file?.type || undefined,
                         cacheControl: '0',
                     });
@@ -327,8 +335,8 @@
                 };
                 const { error: metaErr } = await supabase
                     .from(tableName)
-                    .upsert([payload], { onConflict: 'storage_path' });
-                if (metaErr) throw new Error(`[upload:${type}] erro ao salvar metadata (upsert por storage_path): ${metaErr?.message || 'desconhecido'}`);
+                    .insert([payload]);
+                if (metaErr) throw new Error(`[upload:${type}] erro ao salvar metadata: ${metaErr?.message || 'desconhecido'}`);
                 return payload;
             },
 
@@ -654,7 +662,7 @@
                 };
                 this.persistFilters();
                 if (TV_MODE) {
-                    try { window.parent?.postMessage({ type: 'avantrax:filters', filters: { ...this.filters } }, '*'); } catch (_) {}
+                    try { window.parent?.postMessage({ type: 'avantrax:filters', filters: { ...this.filters } }, MESSAGE_ORIGIN); } catch (_) {}
                 }
             },
 
@@ -662,7 +670,7 @@
                 this.filters = { montadora: '', proprietario: '' };
                 this.persistFilters();
                 if (TV_MODE) {
-                    try { window.parent?.postMessage({ type: 'avantrax:filters', filters: { ...this.filters } }, '*'); } catch (_) {}
+                    try { window.parent?.postMessage({ type: 'avantrax:filters', filters: { ...this.filters } }, MESSAGE_ORIGIN); } catch (_) {}
                 }
             },
 
@@ -1131,7 +1139,7 @@
             async init() {
                 DataService.loadFilters();
                 if (TV_MODE) {
-                    try { window.parent?.postMessage({ type: 'avantrax:filters', filters: { ...DataService.filters } }, '*'); } catch (_) {}
+                    try { window.parent?.postMessage({ type: 'avantrax:filters', filters: { ...DataService.filters } }, MESSAGE_ORIGIN); } catch (_) {}
                 }
                 this.setupClock();
                 this.setupCenterGadget();
@@ -1303,7 +1311,7 @@
                                     console.warn('[realtime] nao foi possivel enviar evento realtime apos upload', evtErr);
                                 }
                                 if (TV_MODE) {
-                                    try { window.parent?.postMessage({ type: 'avantrax:data_updated' }, '*'); } catch (_) {}
+                                    try { window.parent?.postMessage({ type: 'avantrax:data_updated' }, MESSAGE_ORIGIN); } catch (_) {}
                                 }
                             } catch (err) {
                                 console.error('Falha ao enviar para Supabase. Dashboard seguirá com dados locais.', err);
@@ -1395,7 +1403,7 @@
                     if (e.ctrlKey && e.shiftKey && key === 'h') {
                         e.preventDefault();
                         if (TV_MODE) {
-                            try { window.parent?.postMessage({ type: 'avantrax:top_info_toggle' }, '*'); } catch (_) { TopInfoVisibility.toggle(); }
+                            try { window.parent?.postMessage({ type: 'avantrax:top_info_toggle' }, MESSAGE_ORIGIN); } catch (_) { TopInfoVisibility.toggle(); }
                         } else {
                             TopInfoVisibility.toggle();
                         }
@@ -1403,11 +1411,11 @@
                     }
                     if (e.ctrlKey && e.shiftKey && key === 'p') {
                         e.preventDefault();
-                        try { window.parent?.postMessage({ type: 'avantrax:manual_switch_open' }, '*'); } catch (_) {}
+                        try { window.parent?.postMessage({ type: 'avantrax:manual_switch_open' }, MESSAGE_ORIGIN); } catch (_) {}
                     }
                     if (e.ctrlKey && e.shiftKey && key === 'g') {
                         e.preventDefault();
-                        try { window.parent?.postMessage({ type: 'avantrax:manage_open' }, '*'); } catch (_) {}
+                        try { window.parent?.postMessage({ type: 'avantrax:manage_open' }, MESSAGE_ORIGIN); } catch (_) {}
                     }
                     if (e.ctrlKey && e.altKey) {
                         if (key === '-' || key === '_') { e.preventDefault(); ViewportScale.setTune({ scalePct: (ViewportScale.tune.scalePct ?? 100) - 2 }); if (panel.classList.contains('open')) open(); }
@@ -1551,7 +1559,7 @@
                     card.innerHTML = `
                         <span style="display:inline-flex;align-items:center;gap:6px;min-width:0;">
                             <span style="width:6px;height:6px;border-radius:50%;background:${c.text};flex-shrink:0;"></span>
-                            <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${motivo}</span>
+                            <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(motivo)}</span>
                         </span>
                         <span style="padding:2px 8px;border-radius:999px;background:rgba(0,0,0,0.16);border:1px solid rgba(255,255,255,0.16);font-family:'JetBrains Mono',monospace;color:${c.text};">${Number(count || 0).toLocaleString('pt-BR')}</span>
                     `;
@@ -1599,17 +1607,17 @@
                         card.innerHTML = `
                             <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:6px;">
                                 <div style="font-size:0.68rem; font-weight:800; color:#E0E6ED; font-family:'JetBrains Mono',monospace; letter-spacing:0.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex:1;">
-                                    ${chassi}
+                                    ${escapeHtml(chassi)}
                                 </div>
                                 <div style="text-align:right; flex-shrink:0;">
                                     <div style="font-size:0.85rem; font-weight:800; color:${agingColor}; font-family:'JetBrains Mono',monospace; line-height:1;">${aging}d</div>
                                     <div style="font-size:0.5rem; color:#475569; text-transform:uppercase; letter-spacing:0.5px;">aging</div>
                                 </div>
                             </div>
-                            ${modelo ? `<div style="font-size:0.6rem; color:#64748B; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${modelo}</div>` : ''}
+                            ${modelo ? `<div style="font-size:0.6rem; color:#64748B; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(modelo)}</div>` : ''}
                             <div style="display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:6px; background:${c.bg}; border:1px solid ${c.border}; align-self:flex-start; max-width:100%;">
                                 <span style="width:4px; height:4px; border-radius:50%; background:${c.text}; flex-shrink:0;"></span>
-                                <span style="font-size:0.58rem; font-weight:700; color:${c.text}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${motivo}</span>
+                                <span style="font-size:0.58rem; font-weight:700; color:${c.text}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(motivo)}</span>
                             </div>
                         `;
                         grid.appendChild(card);
@@ -1830,7 +1838,7 @@
                         <div style="width:20px; font-size:0.75rem; font-weight:800; color:${color}; text-align:center; flex-shrink:0;">${rankSymbols[idx]}</div>
                         <div style="flex:1; min-width:0;">
                             <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:4px;">
-                                <span style="font-size:0.72rem; font-weight:700; color:#E0E6ED; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:160px;">${nome}</span>
+                                <span style="font-size:0.72rem; font-weight:700; color:#E0E6ED; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:160px;">${escapeHtml(nome)}</span>
                                 <span style="font-size:0.72rem; font-family:'JetBrains Mono',monospace; font-weight:800; color:${color}; margin-left:8px; flex-shrink:0;">${qtd.toLocaleString('pt-BR')}</span>
                             </div>
                             <div style="height:6px; background:rgba(255,255,255,0.06); border-radius:6px; overflow:hidden; position:relative;">
@@ -1987,7 +1995,7 @@
                         <div style="width:20px; font-size:0.75rem; font-weight:800; color:${color}; text-align:center; flex-shrink:0; line-height:1;">${transpRanks[idx]}</div>
                         <div style="flex:1; min-width:0;">
                             <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:4px;">
-                                <span style="font-size:0.68rem; font-weight:700; color:#E0E6ED; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:170px;" title="${nome}">${nomeExib}</span>
+                                <span style="font-size:0.68rem; font-weight:700; color:#E0E6ED; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:170px;" title="${escapeHtml(nome)}">${escapeHtml(nomeExib)}</span>
                                 <span style="font-size:0.72rem; font-family:'JetBrains Mono',monospace; font-weight:800; color:${color}; margin-left:8px; flex-shrink:0;">${qtd.toLocaleString('pt-BR')}</span>
                             </div>
                             <div style="height:6px; background:rgba(255,255,255,0.06); border-radius:6px; overflow:hidden;">
@@ -2673,10 +2681,13 @@
 
         const postReadyToParent = () => {
             if (!TV_MODE) return;
-            try { window.parent?.postMessage({ type: 'avantrax:ready', page: 'index' }, '*'); } catch (_) {}
+            try { window.parent?.postMessage({ type: 'avantrax:ready', page: 'index' }, MESSAGE_ORIGIN); } catch (_) {}
         };
 
         window.addEventListener('message', async (e) => {
+            if (!TV_MODE) return;
+            if (e.origin !== MESSAGE_ORIGIN) return;
+            if (e.source !== window.parent) return;
             const data = e?.data;
             if (!data || typeof data !== 'object') return;
             if (data.type === 'avantrax:top_info_set') {
@@ -2709,7 +2720,7 @@
                         dataset = FieldPicker.buildEmbarcadosHojeDataset();
                     }
                     if (dataset) {
-                        window.parent?.postMessage({ type: 'avantrax:dataset_selected', dataset }, '*');
+                        window.parent?.postMessage({ type: 'avantrax:dataset_selected', dataset }, MESSAGE_ORIGIN);
                     }
                 } catch (_) {}
                 return;
@@ -2860,7 +2871,7 @@
                         ],
                         timestamp: new Date().toISOString(),
                     };
-                    try { window.parent?.postMessage({ type: 'avantrax:export_menu', menu }, '*'); } catch (_) {}
+                    try { window.parent?.postMessage({ type: 'avantrax:export_menu', menu }, MESSAGE_ORIGIN); } catch (_) {}
                     return;
                 }
                 if (action.type === 'bloq_menu') {
@@ -2875,7 +2886,7 @@
                         ],
                         timestamp: new Date().toISOString(),
                     };
-                    try { window.parent?.postMessage({ type: 'avantrax:export_menu', menu }, '*'); } catch (_) {}
+                    try { window.parent?.postMessage({ type: 'avantrax:export_menu', menu }, MESSAGE_ORIGIN); } catch (_) {}
                     return;
                 }
 
@@ -2897,7 +2908,7 @@
                         ],
                         timestamp: new Date().toISOString(),
                     };
-                    try { window.parent?.postMessage({ type: 'avantrax:export_menu', menu }, '*'); } catch (_) {}
+                    try { window.parent?.postMessage({ type: 'avantrax:export_menu', menu }, MESSAGE_ORIGIN); } catch (_) {}
                     return;
                 }
             },

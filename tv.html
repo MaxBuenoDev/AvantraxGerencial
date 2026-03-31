@@ -448,8 +448,8 @@
     </style>
   </head>
   <body>
-    <iframe id="frame-index" src="index.html?tv=1"></iframe>
-    <iframe id="frame-mapa" src="mapa.html?tv=1"></iframe>
+    <iframe id="frame-index" src="index.html?tv=1" sandbox="allow-scripts allow-same-origin"></iframe>
+    <iframe id="frame-mapa" src="mapa.html?tv=1" sandbox="allow-scripts allow-same-origin"></iframe>
 
     <div id="manual-nav-overlay" role="dialog" aria-modal="true" aria-hidden="true">
       <div id="manual-nav">
@@ -551,6 +551,7 @@
         index: document.getElementById("frame-index"),
         mapa: document.getElementById("frame-mapa"),
       };
+      const MESSAGE_ORIGIN = window.location.origin;
 
       const ready = { index: false, mapa: false };
       let filters = { montadora: "", proprietario: "" };
@@ -586,7 +587,7 @@
               reason: String(meta.reason || ""),
               version: meta.version || null,
             },
-            "*"
+            MESSAGE_ORIGIN
           );
         } catch (_) {}
       }
@@ -672,19 +673,19 @@
 
       function postScreenStart(name) {
         try {
-          frames[name]?.contentWindow?.postMessage({ type: "avantrax:screen_start", durationMs: DURATION_MS }, "*");
+          frames[name]?.contentWindow?.postMessage({ type: "avantrax:screen_start", durationMs: DURATION_MS }, MESSAGE_ORIGIN);
         } catch (_) {}
       }
 
       function postFilters(name) {
         try {
-          frames[name]?.contentWindow?.postMessage({ type: "avantrax:filters", filters }, "*");
+          frames[name]?.contentWindow?.postMessage({ type: "avantrax:filters", filters }, MESSAGE_ORIGIN);
         } catch (_) {}
       }
 
       function postPick(name, enabled) {
         try {
-          frames[name]?.contentWindow?.postMessage({ type: "avantrax:pick_enable", enabled }, "*");
+          frames[name]?.contentWindow?.postMessage({ type: "avantrax:pick_enable", enabled }, MESSAGE_ORIGIN);
         } catch (_) {}
       }
 
@@ -692,7 +693,7 @@
         try {
           frames[name]?.contentWindow?.postMessage(
             { type: "avantrax:top_info_set", hidden: !!topInfoHidden },
-            "*"
+            MESSAGE_ORIGIN
           );
         } catch (_) {}
       }
@@ -713,7 +714,7 @@
 
       function postDatasetRequest(id) {
         try {
-          frames[current]?.contentWindow?.postMessage({ type: "avantrax:dataset_request", id }, "*");
+          frames[current]?.contentWindow?.postMessage({ type: "avantrax:dataset_request", id }, MESSAGE_ORIGIN);
         } catch (_) {}
       }
 
@@ -834,6 +835,9 @@
       });
 
       window.addEventListener("message", (e) => {
+        if (e.origin !== MESSAGE_ORIGIN) return;
+        const isKnownFrame = e.source === frames.index?.contentWindow || e.source === frames.mapa?.contentWindow;
+        if (!isKnownFrame) return;
         const data = e && e.data;
         if (!data || typeof data !== "object") return;
         if (data.type === "avantrax:top_info_toggle") {
@@ -976,7 +980,7 @@
             const kind = f.kind || "field";
             const leftK = kind === "dataset" ? "Consulta" : (f.label || f.id || f.tag || "Campo");
             const leftV = kind === "dataset" ? `${f.title || "Lista"} (${Number(f.count || 0).toLocaleString("pt-BR")})` : (f.value || f.text || "—");
-            const meta = `${(f.page || "").toUpperCase()}<br/>${escapeHtml(formatTime(f.timestamp))}`;
+            const meta = `${escapeHtml((f.page || "").toUpperCase())}<br/>${escapeHtml(formatTime(f.timestamp))}`;
             item.innerHTML = `
               <div class="l">
                 <div class="k">${escapeHtml(leftK)}</div>

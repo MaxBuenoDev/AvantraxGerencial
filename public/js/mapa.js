@@ -2,6 +2,14 @@
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
 
 const TV_MODE = new URLSearchParams(window.location.search).has('tv');
+const MESSAGE_ORIGIN = window.location.origin;
+
+const escapeHtml = (value) => String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 
 const TopInfoVisibility = {
     storageKey: 'AVANTRAX_TOP_INFO_HIDDEN',
@@ -93,7 +101,7 @@ const SupabaseStore = {
         const statusPart = status ? ` status=${status}` : '';
         const base = `[upload:${type}] ${err?.message || 'falha desconhecida'}${code}${statusPart}`;
         if (this.isPermissionError(err)) {
-            return new Error(`${base}. Verifique politicas RLS do Supabase (storage.objects precisa SELECT+UPDATE para upsert, alem de INSERT para novos objetos).`);
+            return new Error(`${base}. Verifique politicas RLS do Supabase (storage.objects precisa INSERT para upload e SELECT para leitura).`);
         }
         return new Error(base);
     },
@@ -156,7 +164,7 @@ const SupabaseStore = {
         const { error: upErr } = await supabase.storage
             .from(this.bucket)
             .upload(path, file, {
-                upsert: true,
+                upsert: false,
                 contentType: file?.type || undefined,
                 cacheControl: '0',
             });
@@ -169,8 +177,8 @@ const SupabaseStore = {
         };
         const { error: metaErr } = await supabase
             .from(table)
-            .upsert([payload], { onConflict: 'storage_path' });
-        if (metaErr) throw new Error(`[upload:${type}] erro ao salvar metadata (upsert por storage_path): ${metaErr?.message || 'desconhecido'}`);
+            .insert([payload]);
+        if (metaErr) throw new Error(`[upload:${type}] erro ao salvar metadata: ${metaErr?.message || 'desconhecido'}`);
         return payload;
     },
 
@@ -605,7 +613,7 @@ const FiltersUI = {
                 montadora: montSel.value === '__ALL__' ? '' : montSel.value,
                 proprietario: propSel.value === '__ALL__' ? '' : propSel.value,
             };
-            try { if (TV_MODE) window.parent?.postMessage({ type: 'avantrax:filters', filters: { ...currentFilters } }, '*'); } catch (_) {}
+            try { if (TV_MODE) window.parent?.postMessage({ type: 'avantrax:filters', filters: { ...currentFilters } }, MESSAGE_ORIGIN); } catch (_) {}
             renderDashboard(lastInventarioRows || []);
         };
 
@@ -614,7 +622,7 @@ const FiltersUI = {
         applyBtn.onclick= () => { applyFromUI(); close(); };
         clearBtn.onclick= () => {
             currentFilters = { montadora: '', proprietario: '' };
-            try { if (TV_MODE) window.parent?.postMessage({ type: 'avantrax:filters', filters: { ...currentFilters } }, '*'); } catch (_) {}
+            try { if (TV_MODE) window.parent?.postMessage({ type: 'avantrax:filters', filters: { ...currentFilters } }, MESSAGE_ORIGIN); } catch (_) {}
             this.refreshUI();
             renderDashboard(lastInventarioRows || []);
         };
@@ -644,7 +652,7 @@ const FiltersUI = {
             if (e.ctrlKey && e.shiftKey && key === 'h') {
                 e.preventDefault();
                 if (TV_MODE) {
-                    try { window.parent?.postMessage({ type: 'avantrax:top_info_toggle' }, '*'); } catch (_) { TopInfoVisibility.toggle(); }
+                    try { window.parent?.postMessage({ type: 'avantrax:top_info_toggle' }, MESSAGE_ORIGIN); } catch (_) { TopInfoVisibility.toggle(); }
                 } else {
                     TopInfoVisibility.toggle();
                 }
@@ -652,11 +660,11 @@ const FiltersUI = {
             }
             if (e.ctrlKey && e.shiftKey && key === 'p') {
                 e.preventDefault();
-                try { window.parent?.postMessage({ type: 'avantrax:manual_switch_open' }, '*'); } catch (_) {}
+                try { window.parent?.postMessage({ type: 'avantrax:manual_switch_open' }, MESSAGE_ORIGIN); } catch (_) {}
             }
             if (e.ctrlKey && e.shiftKey && key === 'g') {
                 e.preventDefault();
-                try { window.parent?.postMessage({ type: 'avantrax:manage_open' }, '*'); } catch (_) {}
+                try { window.parent?.postMessage({ type: 'avantrax:manage_open' }, MESSAGE_ORIGIN); } catch (_) {}
             }
             if (!panel.classList.contains('open')) return;
             if (key === '-' || key === '_') { e.preventDefault(); ViewportScale.setTune({ scalePct: (ViewportScale.tune.scalePct ?? 100) - 2 }); open(); }
@@ -1120,7 +1128,7 @@ function setupTooltip(svg) {
         document.getElementById('tt-s').textContent = (path.dataset.name||uf) + ' (' + uf + ')';
         document.getElementById('tt-c').textContent = cnt.toLocaleString('pt-BR');
         const pairs = Object.entries(localMap).filter(([l]) => extractUF(l)===uf).sort((a,b)=>b[1]-a[1]).slice(0,3);
-        document.getElementById('tt-d').innerHTML = pairs.map(([l,c])=>`<div style="display:flex;justify-content:space-between;gap:10px;"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${l}</span><span>${c}</span></div>`).join('');
+        document.getElementById('tt-d').innerHTML = pairs.map(([l,c])=>`<div style="display:flex;justify-content:space-between;gap:10px;"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(l)}</span><span>${c}</span></div>`).join('');
         const dr = document.getElementById('design-root').getBoundingClientRect();
         const sc = dr.width / 1920;
         let tx = (e.clientX - dr.left) / sc + 14;
@@ -1185,12 +1193,12 @@ function renderTopCountries() {
                 <div class="ctry-rank">${rank}</div>
                 <span class="ctry-flag" aria-hidden="true">
                     ${flagUrl
-                        ? `<img class="ctry-flag-img" src="${flagUrl}" alt="${meta.name}" loading="lazy" decoding="async" onerror="this.style.display='none'; this.parentElement.classList.add('is-fallback'); this.parentElement.textContent='${meta.code.slice(0,2)}';">`
-                        : meta.code.slice(0,2)}
+                        ? `<img class="ctry-flag-img" src="${escapeHtml(flagUrl)}" alt="${escapeHtml(meta.name)}" loading="lazy" decoding="async" onerror="this.style.display='none'; this.parentElement.classList.add('is-fallback'); this.parentElement.textContent='${escapeHtml(meta.code.slice(0,2))}';">`
+                        : escapeHtml(meta.code.slice(0,2))}
                 </span>
-                <div class="ctry-meta" title="${meta.name}">
-                    <div class="ctry-code">${meta.code}</div>
-                    <div class="ctry-name">${meta.name}</div>
+                <div class="ctry-meta" title="${escapeHtml(meta.name)}">
+                    <div class="ctry-code">${escapeHtml(meta.code)}</div>
+                    <div class="ctry-name">${escapeHtml(meta.name)}</div>
                 </div>
             </div>
             <div class="ctry-bottom">
@@ -1215,7 +1223,7 @@ function renderTopStates() {
         const row = document.createElement('div');
         row.className='srow';
         row.innerHTML=`<div class="srnk">${i+1}</div>
-        <div class="snm" title="${name}">${name} <span style="color:var(--dim);font-size:.58rem;">(${uf})</span></div>
+        <div class="snm" title="${escapeHtml(name)}">${escapeHtml(name)} <span style="color:var(--dim);font-size:.58rem;">(${escapeHtml(uf)})</span></div>
         <div class="strack"><div class="sfill" data-w="${pct}" style="width:0%;background:linear-gradient(90deg,${rc.b}77,${rc.b});"></div></div>
         <div class="scnt">${cnt}</div>`;
         el.appendChild(row);
@@ -1237,7 +1245,7 @@ function renderRegions(total) {
         const rc=REGION_COLOR[reg]||REGION_COLOR['Sudeste'];
         const row=document.createElement('div');
         row.className='drow';
-        row.innerHTML=`<div class="dlbl" style="color:${rc.b};" title="${reg}">${reg}</div>
+        row.innerHTML=`<div class="dlbl" style="color:${rc.b};" title="${escapeHtml(reg)}">${escapeHtml(reg)}</div>
         <div class="dtrk"><div class="dfl" data-w="${bw}" style="width:0%;background:linear-gradient(90deg,${rc.b}50,${rc.b}BB);">${cnt}</div></div>
         <div class="dvl">${pct}%</div>`;
         el.appendChild(row);
@@ -1275,10 +1283,10 @@ function showVPage(idx) {
         const g=rc?rc.b:'#00BFFF';
         const row=document.createElement('div');
         row.className='vi';
-        row.innerHTML=`<div class="vc" title="${v.chassi}">${v.chassi}</div>
-        <div class="vm" title="${v.modelo}">${v.modelo}</div>
-        ${v.uf?`<div class="vuf" style="background:${g}15;border:1px solid ${g}35;color:${g};">${v.uf}</div>`:''}
-        <div class="vloc" style="background:rgba(0,191,255,.08);border:1px solid rgba(0,191,255,.18);color:var(--cyan);" title="${v.local}">${v.local}</div>`;
+        row.innerHTML=`<div class="vc" title="${escapeHtml(v.chassi)}">${escapeHtml(v.chassi)}</div>
+        <div class="vm" title="${escapeHtml(v.modelo)}">${escapeHtml(v.modelo)}</div>
+        ${v.uf?`<div class="vuf" style="background:${g}15;border:1px solid ${g}35;color:${g};">${escapeHtml(v.uf)}</div>`:''}
+        <div class="vloc" style="background:rgba(0,191,255,.08);border:1px solid rgba(0,191,255,.18);color:var(--cyan);" title="${escapeHtml(v.local)}">${escapeHtml(v.local)}</div>`;
         el.appendChild(row);
     });
     document.querySelectorAll('.pdot').forEach((d,i)=>d.classList.toggle('on',i===idx));
@@ -1330,7 +1338,7 @@ function showLPage(idx) {
         const g=rc?rc.b:'#00BFFF';
         const row=document.createElement('div');
         row.className='lloc';
-        row.innerHTML=`<div style="flex:1;font-size:.62rem;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${local}">${local}</div>
+        row.innerHTML=`<div style="flex:1;font-size:.62rem;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${escapeHtml(local)}">${escapeHtml(local)}</div>
         <div style="width:46px;height:4px;background:rgba(255,255,255,.04);border-radius:4px;overflow:hidden;flex-shrink:0;">
             <div style="height:100%;width:${pct}%;background:${g};border-radius:4px;"></div>
         </div>
@@ -1446,7 +1454,7 @@ function showDashboard(inventarioRows) {
         ViewportScale.apply();
         if (!TV_MODE) startCountdown();
         if (!TV_MODE) { try{ document.documentElement.requestFullscreen().catch(()=>{}); }catch(e){} }
-        if (TV_MODE) { try { window.parent?.postMessage({ type: 'avantrax:ready', page: 'mapa' }, '*'); } catch (_) {} }
+        if (TV_MODE) { try { window.parent?.postMessage({ type: 'avantrax:ready', page: 'mapa' }, MESSAGE_ORIGIN); } catch (_) {} }
     },400);
 }
 
@@ -1930,6 +1938,8 @@ window.addEventListener('load', async () => {
 
 window.addEventListener('message', async (e) => {
     if (!TV_MODE) return;
+    if (e.origin !== MESSAGE_ORIGIN) return;
+    if (e.source !== window.parent) return;
     const data = e?.data;
     if (!data || typeof data !== 'object') return;
     if (data.type === 'avantrax:top_info_set') {
@@ -2078,7 +2088,7 @@ const FieldPicker = {
         const el = this.hoverEl || this.pickCandidate(document.elementFromPoint(e.clientX, e.clientY));
         if (!el) return;
         const field = this.extractField(el);
-        try { window.parent?.postMessage({ type: 'avantrax:field_selected', field }, '*'); } catch (_) {}
+        try { window.parent?.postMessage({ type: 'avantrax:field_selected', field }, MESSAGE_ORIGIN); } catch (_) {}
     },
 
     pickCandidate(el) {
