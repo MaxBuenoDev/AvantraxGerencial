@@ -5,6 +5,12 @@
         const TV_MODE = qs.has('tv');
         const STANDALONE_MODE = qs.has('standalone');
         const MESSAGE_ORIGIN = window.location.origin;
+        const MAX_UPLOAD_BYTES = 25 * 1024 * 1024; // 25MB
+        const ALLOWED_EXTENSIONS = ['.xlsx'];
+        const ALLOWED_MIME_TYPES = new Set([
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'application/octet-stream',
+        ]);
 
         const escapeHtml = (value) => String(value ?? '')
             .replace(/&/g, '&amp;')
@@ -12,6 +18,28 @@
             .replace(/>/g, '&gt;')
             .replace(/"/g, '&quot;')
             .replace(/'/g, '&#39;');
+
+        const validateSpreadsheetUpload = (file, label = 'arquivo') => {
+            if (!file) return `${label}: arquivo não informado.`;
+            const fileName = String(file.name || '').trim();
+            const lowerName = fileName.toLowerCase();
+            const hasValidExtension = ALLOWED_EXTENSIONS.some((ext) => lowerName.endsWith(ext));
+            if (!hasValidExtension) {
+                return `${label}: formato inválido. Use apenas arquivo .xlsx.`;
+            }
+            const size = Number(file.size || 0);
+            if (!Number.isFinite(size) || size <= 0) {
+                return `${label}: arquivo vazio ou inválido.`;
+            }
+            if (size > MAX_UPLOAD_BYTES) {
+                return `${label}: arquivo excede 25MB.`;
+            }
+            const mime = String(file.type || '').toLowerCase();
+            if (mime && !ALLOWED_MIME_TYPES.has(mime)) {
+                return `${label}: tipo MIME não permitido (${mime}).`;
+            }
+            return null;
+        };
 
         if (!TV_MODE && !STANDALONE_MODE) {
             window.location.replace('tv.html');
@@ -1269,23 +1297,49 @@
                 this._invFile = null;
 
                 inputEmb.onchange = (e) => {
-                    this._embFile = e.target.files[0];
-                    if (this._embFile) {
+                    const candidate = e.target.files[0];
+                    const error = validateSpreadsheetUpload(candidate, 'Embarcados');
+                    if (error) {
+                        this._embFile = null;
+                        e.target.value = '';
+                        btnStart.disabled = true;
+                        alert(error);
+                        return;
+                    }
+                    this._embFile = candidate;
+                    if (candidate) {
                         document.getElementById('box-embarcados').classList.add('loaded');
-                        document.getElementById('label-embarcados').textContent = this._embFile.name;
+                        document.getElementById('label-embarcados').textContent = candidate.name;
                         if (this._embFile && this._invFile) btnStart.disabled = false;
                     }
                 };
                 inputInv.onchange = (e) => {
-                    this._invFile = e.target.files[0];
-                    if (this._invFile) {
+                    const candidate = e.target.files[0];
+                    const error = validateSpreadsheetUpload(candidate, 'Inventário');
+                    if (error) {
+                        this._invFile = null;
+                        e.target.value = '';
+                        btnStart.disabled = true;
+                        alert(error);
+                        return;
+                    }
+                    this._invFile = candidate;
+                    if (candidate) {
                         document.getElementById('box-inventario').classList.add('loaded');
-                        document.getElementById('label-inventario').textContent = this._invFile.name;
+                        document.getElementById('label-inventario').textContent = candidate.name;
                         if (this._embFile && this._invFile) btnStart.disabled = false;
                     }
                 };
 
                 btnStart.onclick = async () => {
+                    const embErr = validateSpreadsheetUpload(this._embFile, 'Embarcados');
+                    const invErr = validateSpreadsheetUpload(this._invFile, 'Inventário');
+                    if (embErr || invErr) {
+                        alert(embErr || invErr);
+                        btnStart.disabled = false;
+                        btnStart.textContent = "INICIAR DASHBOARD";
+                        return;
+                    }
                     btnStart.textContent = "PROCESSANDO...";
                     btnStart.disabled = true;
                     try {

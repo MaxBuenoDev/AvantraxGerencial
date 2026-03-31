@@ -3,6 +3,12 @@ import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 
 const TV_MODE = new URLSearchParams(window.location.search).has('tv');
 const MESSAGE_ORIGIN = window.location.origin;
+const MAX_UPLOAD_BYTES = 25 * 1024 * 1024; // 25MB
+const ALLOWED_EXTENSIONS = ['.xlsx'];
+const ALLOWED_MIME_TYPES = new Set([
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'application/octet-stream',
+]);
 
 const escapeHtml = (value) => String(value ?? '')
     .replace(/&/g, '&amp;')
@@ -10,6 +16,28 @@ const escapeHtml = (value) => String(value ?? '')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+
+const validateSpreadsheetUpload = (file, label = 'arquivo') => {
+    if (!file) return `${label}: arquivo não informado.`;
+    const fileName = String(file.name || '').trim();
+    const lowerName = fileName.toLowerCase();
+    const hasValidExtension = ALLOWED_EXTENSIONS.some((ext) => lowerName.endsWith(ext));
+    if (!hasValidExtension) {
+        return `${label}: formato inválido. Use apenas arquivo .xlsx.`;
+    }
+    const size = Number(file.size || 0);
+    if (!Number.isFinite(size) || size <= 0) {
+        return `${label}: arquivo vazio ou inválido.`;
+    }
+    if (size > MAX_UPLOAD_BYTES) {
+        return `${label}: arquivo excede 25MB.`;
+    }
+    const mime = String(file.type || '').toLowerCase();
+    if (mime && !ALLOWED_MIME_TYPES.has(mime)) {
+        return `${label}: tipo MIME não permitido (${mime}).`;
+    }
+    return null;
+};
 
 const TopInfoVisibility = {
     storageKey: 'AVANTRAX_TOP_INFO_HIDDEN',
@@ -1893,15 +1921,31 @@ window.addEventListener('load', async () => {
     let invFile = null;
 
     input.onchange = e => {
-        invFile = e.target.files[0];
-        if (invFile) {
+        const candidate = e.target.files[0];
+        const error = validateSpreadsheetUpload(candidate, 'Inventário');
+        if (error) {
+            invFile = null;
+            e.target.value = '';
+            btn.disabled = true;
+            alert(error);
+            return;
+        }
+        invFile = candidate;
+        if (candidate) {
             document.getElementById('drop-box').classList.add('loaded');
-            document.getElementById('drop-lbl').textContent = '✓ ' + invFile.name;
+            document.getElementById('drop-lbl').textContent = '✓ ' + candidate.name;
             btn.disabled = false;
         }
     };
 
     btn.onclick = async () => {
+        const invErr = validateSpreadsheetUpload(invFile, 'Inventário');
+        if (invErr) {
+            alert(invErr);
+            btn.disabled = false;
+            btn.textContent = 'GERAR MAPA';
+            return;
+        }
         btn.textContent = 'PROCESSANDO...';
         btn.disabled = true;
         try {
