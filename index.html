@@ -4,6 +4,18 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AVANTRAX | Dashboard Gerencial</title>
+    <script>
+      (function () {
+        try {
+          const qs = new URLSearchParams(window.location.search || "");
+          const path = (window.location.pathname || "/").toLowerCase();
+          const isRootIndex = path === "/" || path.endsWith("/index.html");
+          if (isRootIndex && !qs.has("tv") && !qs.has("standalone")) {
+            window.location.replace(`tv.html${window.location.search || ""}`);
+          }
+        } catch (_) {}
+      })();
+    </script>
     
     <!-- BIBLIOTECAS VIA CDN -->
     <script src="/supabase-config.js"></script>
@@ -12,6 +24,17 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
 
     <link rel="stylesheet" href="/css/index.css">
+    <script>
+      (function () {
+        try {
+          var qs = new URLSearchParams(window.location.search || "");
+          if (!qs.has("tv")) return;
+          var st = document.createElement("style");
+          st.textContent = "#upload-overlay{display:none!important;opacity:0!important;pointer-events:none!important}#dashboard{display:flex!important}";
+          document.head.appendChild(st);
+        } catch (_) {}
+      })();
+    </script>
 </head>
 <body>
 

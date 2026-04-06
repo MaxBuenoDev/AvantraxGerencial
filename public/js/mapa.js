@@ -1,12 +1,19 @@
 
-import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
+import { ensureAuthenticatedContext, getSharedSupabaseClient, makeUnitScopedKey, signOutAndRedirect } from "./auth-context.js";
 
-const TV_MODE = new URLSearchParams(window.location.search).has('tv');
+const qs = new URLSearchParams(window.location.search);
+const TV_MODE = qs.has('tv');
+const AUTH_CTX = await ensureAuthenticatedContext({ loginPath: "login.html", requireUnit: true });
+if (!AUTH_CTX) throw new Error("Sessao invalida.");
+const ACTIVE_UNIT = AUTH_CTX.unitSlug;
+const ACTIVE_UNIT_ID = AUTH_CTX.unitId;
 const MESSAGE_ORIGIN = window.location.origin;
 const MAX_UPLOAD_BYTES = 25 * 1024 * 1024; // 25MB
-const ALLOWED_EXTENSIONS = ['.xlsx'];
+const ALLOWED_EXTENSIONS = ['.xlsx', '.xls', '.xlsm'];
 const ALLOWED_MIME_TYPES = new Set([
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'application/vnd.ms-excel',
+    'application/vnd.ms-excel.sheet.macroenabled.12',
     'application/octet-stream',
 ]);
 
@@ -39,8 +46,16 @@ const validateSpreadsheetUpload = (file, label = 'arquivo') => {
     return null;
 };
 
+window.addEventListener('keydown', (e) => {
+    const key = String(e.key || '').toLowerCase();
+    if (e.ctrlKey && e.shiftKey && key === 'l') {
+        e.preventDefault();
+        signOutAndRedirect('login.html');
+    }
+});
+
 const TopInfoVisibility = {
-    storageKey: 'AVANTRAX_TOP_INFO_HIDDEN',
+    storageKey: makeUnitScopedKey('AVANTRAX_TOP_INFO_HIDDEN', ACTIVE_UNIT),
     hidden: false,
 
     init() {
@@ -74,6 +89,8 @@ const SupabaseStore = {
     bucket: 'avantrax-files',
     dashboardUpdatesTable: 'dashboard_updates',
     cleanupRpcName: 'cleanup_upload_history',
+    unitSlug: ACTIVE_UNIT,
+    unitId: ACTIVE_UNIT_ID,
     _client: null,
 
     getConfig() {
@@ -90,9 +107,7 @@ const SupabaseStore = {
 
     getClient() {
         if (this._client) return this._client;
-        const { url, key } = this.getConfig();
-        if (!url || !key) return null;
-        this._client = createClient(url, key);
+        this._client = getSharedSupabaseClient();
         return this._client;
     },
 
@@ -113,7 +128,7 @@ const SupabaseStore = {
         const safeName = this.safePathSegment(fileName || `${type}.xlsx`) || `${type}.xlsx`;
         const stamp = new Date().toISOString().replace(/[-:.TZ]/g, '');
         const rand = Math.random().toString(36).slice(2, 8);
-        return `${type}/${stamp}-${rand}-${safeName}`;
+        return `units/${this.unitSlug}/${type}/${stamp}-${rand}-${safeName}`;
     },
 
     isPermissionError(err) {
@@ -143,9 +158,11 @@ const SupabaseStore = {
         const supabase = this.getClient();
         if (!supabase) return null;
         const table = this.tableForType(type);
+        const pathPrefix = `units/${this.unitSlug}/${type}/%`;
         const { data, error } = await supabase
             .from(table)
-            .select('file_name, storage_path, created_at, file_size, mime_type')
+            .select('file_name, storage_path, created_at, file_size, mime_type, unit_slug, unit_id')
+            .like('storage_path', pathPrefix)
             .order('created_at', { ascending: false })
             .limit(1)
             .maybeSingle();
@@ -207,6 +224,8 @@ const SupabaseStore = {
             storage_path: path,
             file_size: typeof file?.size === 'number' ? file.size : null,
             mime_type: file?.type || null,
+            unit_slug: this.unitSlug,
+            unit_id: this.unitId || null,
         };
         const { error: metaErr } = await supabase
             .from(table)
@@ -223,6 +242,7 @@ const SupabaseStore = {
             const { error } = await supabase.rpc(this.cleanupRpcName, {
                 p_type: String(type || ''),
                 p_keep: Number(keep || 1),
+                p_unit_slug: String(this.unitSlug || ''),
             });
             if (!error) return;
             const msg = String(error?.message || '').toLowerCase();
@@ -245,6 +265,9 @@ const SupabaseStore = {
         const evtVersion = String(version || Date.now());
         const nowIso = new Date().toISOString();
         const candidates = [
+            { event_type: evtType, version: evtVersion, unit_slug: this.unitSlug, unit_id: this.unitId || null, created_at: nowIso },
+            { event_type: evtType, version: evtVersion, unit_slug: this.unitSlug, unit_id: this.unitId || null, timestamp: nowIso },
+            { event_type: evtType, version: evtVersion, unit_slug: this.unitSlug, unit_id: this.unitId || null },
             { event_type: evtType, version: evtVersion, created_at: nowIso },
             { event_type: evtType, version: evtVersion, timestamp: nowIso },
             { event_type: evtType, version: evtVersion },
@@ -294,6 +317,8 @@ const RealtimeSync = {
 
     scheduleReload(source, eventPayload) {
         if (!this._onReload) return;
+        const eventUnit = String(eventPayload?.unit_slug || '').trim().toLowerCase();
+        if (eventUnit && eventUnit !== ACTIVE_UNIT) return;
         const version = String(eventPayload?.version || '');
         if (version && this._lastVersion === version) return;
         if (version) this._lastVersion = version;
@@ -525,7 +550,7 @@ const ViewportScale = {
     designWidth: 1920,
     designHeight: 1080,
     _pendingRaf: 0,
-    tuneKey: 'avantrax.viewport.tune.v1',
+    tuneKey: makeUnitScopedKey('avantrax.viewport.tune.v1', ACTIVE_UNIT),
     tune: { scalePct: 100, offsetY: 0, widthPct: 100, heightPct: 100 },
 
     loadTune() {
@@ -718,6 +743,14 @@ const FiltersUI = {
                 try { window.parent?.postMessage({ type: 'avantrax:manual_switch_open' }, MESSAGE_ORIGIN); } catch (_) {}
             }
             if (e.ctrlKey && e.shiftKey && key === 'g') {
+                e.preventDefault();
+                try { window.parent?.postMessage({ type: 'avantrax:manage_open' }, MESSAGE_ORIGIN); } catch (_) {}
+            }
+            if (TV_MODE && key === 'f9') {
+                e.preventDefault();
+                try { window.parent?.postMessage({ type: 'avantrax:manual_switch_open' }, MESSAGE_ORIGIN); } catch (_) {}
+            }
+            if (TV_MODE && key === 'f8') {
                 e.preventDefault();
                 try { window.parent?.postMessage({ type: 'avantrax:manage_open' }, MESSAGE_ORIGIN); } catch (_) {}
             }
@@ -1447,10 +1480,10 @@ function updateCD() {
 
 function goIndex() {
     if (TV_MODE) return;
-    try { localStorage.setItem('avantrax.came_from_map','1'); } catch(e){}
+    try { localStorage.setItem(makeUnitScopedKey('avantrax.came_from_map', ACTIVE_UNIT),'1'); } catch(e){}
     const root=document.getElementById('design-root');
     if(root){ root.style.transition='opacity .6s'; root.style.opacity='0'; }
-    setTimeout(() => window.location.href='index.html', 600);
+    setTimeout(() => window.location.href=`index.html?unit=${encodeURIComponent(ACTIVE_UNIT)}`, 600);
 }
 
 // auto-update footer timer
@@ -1722,7 +1755,7 @@ async function tryLoadFromSupabase(options = {}) {
 }
 
 const PresentationMapa = {
-    storageKey: 'AVANTRAX_PRESENTATION_MODE',
+    storageKey: makeUnitScopedKey('AVANTRAX_PRESENTATION_MODE', ACTIVE_UNIT),
     enabled: false,
     paused: false,
     groupIndex: 0,
@@ -1901,7 +1934,8 @@ const PresentationMapa = {
 
 // INIT
 // ════════════════════════════════════════════════════════════════
-window.addEventListener('load', async () => {
+const runMapaBootstrap = async () => {
+    try {
     TopInfoVisibility.init();
     initParticles();
     ViewportScale.apply();
@@ -1916,14 +1950,19 @@ window.addEventListener('load', async () => {
     if (TV_MODE) {
         const overlay = document.getElementById('upload-overlay');
         const root = document.getElementById('design-root');
-        if (overlay) { overlay.style.display = 'none'; overlay.style.opacity = '0'; }
+        if (overlay) overlay.remove();
         if (root) root.style.display = 'flex';
         ViewportScale.apply();
-        await RefreshController.safeRefreshAllData('startup-tv');
+        const loadedTv = await RefreshController.safeRefreshAllData('startup-tv');
+        if (!loadedTv) {
+            try { window.parent?.postMessage({ type: 'avantrax:ready', page: 'mapa' }, MESSAGE_ORIGIN); } catch (_) {}
+        }
         return;
     }
 
-    if (await RefreshController.safeRefreshAllData('startup')) return;
+    if (await RefreshController.safeRefreshAllData('startup')) {
+        return;
+    }
 
     // ── Tenta restaurar dados do localStorage (vindo do index.html) ──
     let restored = false;
@@ -1954,7 +1993,11 @@ window.addEventListener('load', async () => {
             invFile = null;
             e.target.value = '';
             btn.disabled = true;
-            alert(error);
+            const drop = document.getElementById('drop-box');
+            const lbl = document.getElementById('drop-lbl');
+            if (drop) drop.classList.remove('loaded');
+            if (lbl) lbl.textContent = error;
+            console.warn('[upload] validação inventário falhou:', error);
             return;
         }
         invFile = candidate;
@@ -2005,7 +2048,16 @@ window.addEventListener('load', async () => {
             btn.textContent = 'GERAR MAPA';
         }
     };
-});
+    } catch (err) {
+        console.error('Falha no bootstrap do mapa:', err);
+    }
+};
+
+if (document.readyState === 'complete' || document.readyState === 'interactive') {
+    queueMicrotask(() => { runMapaBootstrap(); });
+} else {
+    window.addEventListener('DOMContentLoaded', () => { runMapaBootstrap(); }, { once: true });
+}
 
 window.addEventListener('message', async (e) => {
     if (!TV_MODE) return;

@@ -1,14 +1,20 @@
 
-        import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
+        import { ensureAuthenticatedContext, getSharedSupabaseClient, makeUnitScopedKey, signOutAndRedirect } from "./auth-context.js";
 
         const qs = new URLSearchParams(window.location.search);
         const TV_MODE = qs.has('tv');
         const STANDALONE_MODE = qs.has('standalone');
+        const AUTH_CTX = await ensureAuthenticatedContext({ loginPath: "login.html", requireUnit: true });
+        if (!AUTH_CTX) throw new Error("Sessao invalida.");
+        const ACTIVE_UNIT = AUTH_CTX.unitSlug;
+        const ACTIVE_UNIT_ID = AUTH_CTX.unitId;
         const MESSAGE_ORIGIN = window.location.origin;
         const MAX_UPLOAD_BYTES = 25 * 1024 * 1024; // 25MB
-        const ALLOWED_EXTENSIONS = ['.xlsx'];
+        const ALLOWED_EXTENSIONS = ['.xlsx', '.xls', '.xlsm'];
         const ALLOWED_MIME_TYPES = new Set([
             'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'application/vnd.ms-excel',
+            'application/vnd.ms-excel.sheet.macroenabled.12',
             'application/octet-stream',
         ]);
 
@@ -41,12 +47,28 @@
             return null;
         };
 
+        window.addEventListener('keydown', (e) => {
+            const key = String(e.key || '').toLowerCase();
+            if (e.ctrlKey && e.shiftKey && key === 'l') {
+                e.preventDefault();
+                signOutAndRedirect('login.html');
+            }
+        });
+
         if (!TV_MODE && !STANDALONE_MODE) {
-            window.location.replace('tv.html');
+            window.location.replace(`tv.html?unit=${encodeURIComponent(ACTIVE_UNIT)}`);
+        }
+        if (TV_MODE) {
+            document.body.classList.add('tv-mode');
+            const bootOverlay = document.getElementById('upload-overlay');
+            if (bootOverlay) {
+                bootOverlay.style.display = 'none';
+                bootOverlay.style.opacity = '0';
+            }
         }
 
         const TopInfoVisibility = {
-            storageKey: 'AVANTRAX_TOP_INFO_HIDDEN',
+            storageKey: makeUnitScopedKey('AVANTRAX_TOP_INFO_HIDDEN', ACTIVE_UNIT),
             hidden: false,
 
             init() {
@@ -82,9 +104,9 @@
             refreshMs: 10 * 60 * 1000,
 
             getConfig() {
-                const city = (localStorage.getItem('AVANTRAX_WEATHER_CITY') || 'Gravataí - RS').trim() || 'Gravataí - RS';
-                const lat  = Number(localStorage.getItem('AVANTRAX_WEATHER_LAT') || -29.9443);
-                const lon  = Number(localStorage.getItem('AVANTRAX_WEATHER_LON') || -50.9928);
+                const city = (localStorage.getItem(makeUnitScopedKey('AVANTRAX_WEATHER_CITY', ACTIVE_UNIT)) || 'Gravataí - RS').trim() || 'Gravataí - RS';
+                const lat  = Number(localStorage.getItem(makeUnitScopedKey('AVANTRAX_WEATHER_LAT', ACTIVE_UNIT)) || -29.9443);
+                const lon  = Number(localStorage.getItem(makeUnitScopedKey('AVANTRAX_WEATHER_LON', ACTIVE_UNIT)) || -50.9928);
                 return { city, lat, lon };
             },
 
@@ -275,6 +297,8 @@
             bucket: 'avantrax-files',
             dashboardUpdatesTable: 'dashboard_updates',
             cleanupRpcName: 'cleanup_upload_history',
+            unitSlug: ACTIVE_UNIT,
+            unitId: ACTIVE_UNIT_ID,
             _client: null,
 
             getConfig() {
@@ -291,9 +315,7 @@
 
             getClient() {
                 if (this._client) return this._client;
-                const { url, key } = this.getConfig();
-                if (!url || !key) return null;
-                this._client = createClient(url, key);
+                this._client = getSharedSupabaseClient();
                 return this._client;
             },
 
@@ -314,7 +336,7 @@
                 const safeName = this.safePathSegment(fileName || `${type}.xlsx`) || `${type}.xlsx`;
                 const stamp = new Date().toISOString().replace(/[-:.TZ]/g, '');
                 const rand = Math.random().toString(36).slice(2, 8);
-                return `${type}/${stamp}-${rand}-${safeName}`;
+                return `units/${this.unitSlug}/${type}/${stamp}-${rand}-${safeName}`;
             },
 
             isPermissionError(err) {
@@ -361,6 +383,8 @@
                     storage_path: path,
                     file_size: typeof file?.size === 'number' ? file.size : null,
                     mime_type: file?.type || null,
+                    unit_slug: this.unitSlug,
+                    unit_id: this.unitId || null,
                 };
                 const { error: metaErr } = await supabase
                     .from(tableName)
@@ -377,6 +401,7 @@
                     const { error } = await supabase.rpc(this.cleanupRpcName, {
                         p_type: String(type || ''),
                         p_keep: Number(keep || 1),
+                        p_unit_slug: String(this.unitSlug || ''),
                     });
                     if (!error) return;
                     const msg = String(error?.message || '').toLowerCase();
@@ -395,9 +420,11 @@
                 const supabase = this.getClient();
                 if (!supabase) return null;
                 const table = this.tableForType(type);
+                const pathPrefix = `units/${this.unitSlug}/${type}/%`;
                 const { data, error } = await supabase
                     .from(table)
-                    .select('file_name, storage_path, created_at, file_size, mime_type')
+                    .select('file_name, storage_path, created_at, file_size, mime_type, unit_slug, unit_id')
+                    .like('storage_path', pathPrefix)
                     .order('created_at', { ascending: false })
                     .limit(1)
                     .maybeSingle();
@@ -447,6 +474,9 @@
                 const evtVersion = String(version || Date.now());
                 const nowIso = new Date().toISOString();
                 const candidates = [
+                    { event_type: evtType, version: evtVersion, unit_slug: this.unitSlug, unit_id: this.unitId || null, created_at: nowIso },
+                    { event_type: evtType, version: evtVersion, unit_slug: this.unitSlug, unit_id: this.unitId || null, timestamp: nowIso },
+                    { event_type: evtType, version: evtVersion, unit_slug: this.unitSlug, unit_id: this.unitId || null },
                     { event_type: evtType, version: evtVersion, created_at: nowIso },
                     { event_type: evtType, version: evtVersion, timestamp: nowIso },
                     { event_type: evtType, version: evtVersion },
@@ -497,6 +527,8 @@
 
             scheduleReload(source, eventPayload) {
                 if (!this._onReload) return;
+                const eventUnit = String(eventPayload?.unit_slug || '').trim().toLowerCase();
+                if (eventUnit && eventUnit !== ACTIVE_UNIT) return;
                 const version = String(eventPayload?.version || '');
                 if (version && this._lastVersion === version) return;
                 if (version) this._lastVersion = version;
@@ -517,7 +549,7 @@
             designWidth: 1920,
             designHeight: 1080,
             _pendingRaf: 0,
-            tuneKey: 'avantrax.viewport.tune.v1',
+            tuneKey: makeUnitScopedKey('avantrax.viewport.tune.v1', ACTIVE_UNIT),
             tune: { scalePct: 100, offsetY: 0, widthPct: 100, heightPct: 100 },
 
             loadTune() {
@@ -641,7 +673,7 @@
                 embarcados: { montadora: null, proprietario: null },
                 inventario:  { montadora: null, proprietario: null },
             },
-            storageKey: 'avantrax.filters.v1',
+            storageKey: makeUnitScopedKey('avantrax.filters.v1', ACTIVE_UNIT),
 
             normalizeHeader(value) {
                 return String(value ?? '')
@@ -1074,7 +1106,7 @@
                 if (TV_MODE) return;
                 this.stopRotation();
                 this._rotationTimer = window.setTimeout(() => {
-                    window.location.href = 'mapa.html';
+                    window.location.href = `mapa.html?unit=${encodeURIComponent(ACTIVE_UNIT)}`;
                 }, this.rotationMs);
                 this.startCountdown(this.rotationMs);
             },
@@ -1091,6 +1123,7 @@
                 this.stopCountdown();
                 this._embFile = null;
                 this._invFile = null;
+                document.body.classList.add('upload-mode');
 
                 const inputEmb = document.getElementById('input-embarcados');
                 const inputInv = document.getElementById('input-inventario');
@@ -1122,6 +1155,7 @@
                 const overlay = document.getElementById('upload-overlay');
                 const dash = document.getElementById('dashboard');
                 const shouldShow = dash && dash.style.display !== 'flex';
+                document.body.classList.remove('upload-mode');
                 if (!shouldShow) return;
 
                 if (overlay) {
@@ -1196,12 +1230,25 @@
                 this.setupCenterGadget();
                 this.setupUploadListeners();
                 this.setupFilters();
+                if (TV_MODE) {
+                    // No modo TV, nunca bloquear com overlay de upload na inicialização.
+                    const overlay = document.getElementById('upload-overlay');
+                    const dash = document.getElementById('dashboard');
+                    if (overlay) { overlay.style.opacity = '0'; overlay.style.display = 'none'; }
+                    if (dash) dash.style.display = 'flex';
+                    postReadyToParent();
+                }
                 RealtimeSync.init(async (_source, eventPayload) => {
                     const evtType = String(eventPayload?.event_type || 'dashboard_updates');
                     const evtVersion = eventPayload?.version ? `#${eventPayload.version}` : '';
                     await this.safeRefreshAllData(`realtime:${evtType}${evtVersion}`);
                 });
-                await this.safeRefreshAllData('startup');
+                const loaded = await this.safeRefreshAllData('startup');
+                if (!loaded && TV_MODE) {
+                    // Em TV, evita travar na tela inicial sem feedback quando ainda não há base da unidade.
+                    // O upload segue disponível via Ctrl+Shift+F -> NOVO UPLOAD.
+                    this.ensureDashboardVisible();
+                }
             },
 
             setupCenterGadget() {
@@ -1319,6 +1366,10 @@
                 this._embFile = null;
                 this._invFile = null;
 
+                if (!inputEmb || !inputInv || !btnStart) {
+                    return;
+                }
+
                 inputEmb.onchange = (e) => {
                     const candidate = e.target.files[0];
                     const error = validateSpreadsheetUpload(candidate, 'Embarcados');
@@ -1326,7 +1377,11 @@
                         this._embFile = null;
                         e.target.value = '';
                         btnStart.disabled = true;
-                        alert(error);
+                        const box = document.getElementById('box-embarcados');
+                        const lbl = document.getElementById('label-embarcados');
+                        if (box) box.classList.remove('loaded');
+                        if (lbl) lbl.textContent = error;
+                        console.warn('[upload] validação embarcados falhou:', error);
                         return;
                     }
                     this._embFile = candidate;
@@ -1343,7 +1398,11 @@
                         this._invFile = null;
                         e.target.value = '';
                         btnStart.disabled = true;
-                        alert(error);
+                        const box = document.getElementById('box-inventario');
+                        const lbl = document.getElementById('label-inventario');
+                        if (box) box.classList.remove('loaded');
+                        if (lbl) lbl.textContent = error;
+                        console.warn('[upload] validação inventário falhou:', error);
                         return;
                     }
                     this._invFile = candidate;
@@ -1491,6 +1550,14 @@
                         try { window.parent?.postMessage({ type: 'avantrax:manual_switch_open' }, MESSAGE_ORIGIN); } catch (_) {}
                     }
                     if (e.ctrlKey && e.shiftKey && key === 'g') {
+                        e.preventDefault();
+                        try { window.parent?.postMessage({ type: 'avantrax:manage_open' }, MESSAGE_ORIGIN); } catch (_) {}
+                    }
+                    if (TV_MODE && key === 'f9') {
+                        e.preventDefault();
+                        try { window.parent?.postMessage({ type: 'avantrax:manual_switch_open' }, MESSAGE_ORIGIN); } catch (_) {}
+                    }
+                    if (TV_MODE && key === 'f8') {
                         e.preventDefault();
                         try { window.parent?.postMessage({ type: 'avantrax:manage_open' }, MESSAGE_ORIGIN); } catch (_) {}
                     }
@@ -2417,7 +2484,7 @@
         };
 
         const PresentationDashboard = {
-            storageKey: 'AVANTRAX_PRESENTATION_MODE',
+            storageKey: makeUnitScopedKey('AVANTRAX_PRESENTATION_MODE', ACTIVE_UNIT),
             enabled: false,
             paused: false,
             groupIndex: 0,
@@ -2749,12 +2816,28 @@
             },
         };
 
-        window.onload = async () => {
-            TopInfoVisibility.init();
-            Animations.init();
-            await DashboardRender.init();
-            PresentationDashboard.init();
+        const runIndexBootstrap = async () => {
+            try {
+                if (TV_MODE) {
+                    const overlay = document.getElementById('upload-overlay');
+                    const dash = document.getElementById('dashboard');
+                    if (overlay) { overlay.style.opacity = '0'; overlay.style.display = 'none'; }
+                    if (dash) dash.style.display = 'flex';
+                }
+                TopInfoVisibility.init();
+                Animations.init();
+                await DashboardRender.init();
+                PresentationDashboard.init();
+            } catch (err) {
+                console.error('Falha no bootstrap do dashboard:', err);
+            }
         };
+
+        if (document.readyState === 'complete' || document.readyState === 'interactive') {
+            queueMicrotask(() => { runIndexBootstrap(); });
+        } else {
+            window.addEventListener('DOMContentLoaded', () => { runIndexBootstrap(); }, { once: true });
+        }
 
         const postReadyToParent = () => {
             if (!TV_MODE) return;

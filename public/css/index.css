@@ -153,6 +153,24 @@
             gap: 20px;
         }
 
+        /* No modo TV, o overlay de upload nunca deve bloquear a tela. */
+        body.tv-mode #upload-overlay {
+            display: none !important;
+            opacity: 0 !important;
+            pointer-events: none !important;
+        }
+        body.tv-mode #dashboard {
+            display: flex !important;
+        }
+        body.tv-mode.upload-mode #upload-overlay {
+            display: flex !important;
+            opacity: 1 !important;
+            pointer-events: auto !important;
+        }
+        body.tv-mode.upload-mode #dashboard {
+            display: none !important;
+        }
+
         header {
             display: flex;
             justify-content: space-between;

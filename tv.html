@@ -448,8 +448,8 @@
     </style>
   </head>
   <body>
-    <iframe id="frame-index" src="index.html?tv=1" sandbox="allow-scripts allow-same-origin"></iframe>
-    <iframe id="frame-mapa" src="mapa.html?tv=1" sandbox="allow-scripts allow-same-origin"></iframe>
+    <iframe id="frame-index" src="about:blank"></iframe>
+    <iframe id="frame-mapa" src="about:blank"></iframe>
 
     <div id="manual-nav-overlay" role="dialog" aria-modal="true" aria-hidden="true">
       <div id="manual-nav">
@@ -463,7 +463,7 @@
           <div class="v" id="mn-next">—</div>
         </div>
         <div class="hint">
-          <span>Atalho: Ctrl+Shift+P</span>
+          <span>Atalho: Ctrl+Shift+P ou F9</span>
           <span>Enter = Próxima • Esc = Fechar</span>
         </div>
         <div class="actions">
@@ -486,7 +486,7 @@
         </div>
       </div>
       <div class="sub" style="display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap;">
-        <span>Atalho: Ctrl+Shift+G</span>
+        <span>Atalho: Ctrl+Shift+G ou F8</span>
         <span>Esc fecha detalhes / desativa seleção</span>
       </div>
       <div class="list" id="mg-list"></div>
@@ -545,6 +545,82 @@
     </div>
 
     <script>
+      (async () => {
+      const qs = new URLSearchParams(window.location.search);
+      const requestedUnit = String(qs.get("unit") || "").trim().toLowerCase();
+      const relayAccessToken = String(qs.get("at") || "").trim();
+      const relayRefreshToken = String(qs.get("rt") || "").trim();
+      const LOGIN_PATH = "login.html";
+
+      function safeUnit(value) {
+        return String(value || "").trim().toLowerCase().replace(/[^a-z0-9_-]/g, "");
+      }
+
+      function loginRedirect(reason) {
+        const next = `tv.html${window.location.search || ""}`;
+        const target = new URL(LOGIN_PATH, window.location.origin + "/");
+        target.searchParams.set("next", next);
+        if (reason) target.searchParams.set("reason", reason);
+        window.location.replace(target.toString());
+      }
+
+      const url = window.SUPABASE_URL;
+      const key = window.SUPABASE_ANON_KEY;
+      const createClient = window.supabase?.createClient;
+      if (!url || !key || typeof createClient !== "function") {
+        alert("Supabase nao configurado.");
+        return;
+      }
+      const supabaseAuth = createClient(url, key);
+
+      if (relayAccessToken && relayRefreshToken) {
+        try {
+          await supabaseAuth.auth.setSession({
+            access_token: relayAccessToken,
+            refresh_token: relayRefreshToken,
+          });
+          const cleaned = new URL(window.location.href);
+          cleaned.searchParams.delete("at");
+          cleaned.searchParams.delete("rt");
+          window.history.replaceState({}, "", cleaned.toString());
+        } catch (err) {
+          console.warn("[auth] falha ao aplicar sessao transitoria", err);
+        }
+      }
+
+      const { data: authData, error: authError } = await supabaseAuth.auth.getUser();
+      const user = authData?.user || null;
+      if (authError || !user) {
+        loginRedirect("unauthorized");
+        return;
+      }
+
+      const unitQuery = supabaseAuth
+        .from("user_units")
+        .select("unit_slug, active, is_default")
+        .eq("user_id", user.id)
+        .eq("active", true)
+        .order("is_default", { ascending: false })
+        .order("unit_slug", { ascending: true });
+      const { data: units, error: unitsError } = await unitQuery;
+      const unitRows = Array.isArray(units) ? units : [];
+      if (unitsError || !unitRows.length) {
+        loginRedirect("no_unit_access");
+        return;
+      }
+      const match = requestedUnit
+        ? unitRows.find((u) => safeUnit(u?.unit_slug) === requestedUnit) || unitRows[0]
+        : unitRows[0];
+      const ACTIVE_UNIT = safeUnit(match?.unit_slug);
+      if (!ACTIVE_UNIT) {
+        loginRedirect("invalid_unit");
+        return;
+      }
+      if (requestedUnit !== ACTIVE_UNIT) {
+        const canonical = new URL(window.location.href);
+        canonical.searchParams.set("unit", ACTIVE_UNIT);
+        window.history.replaceState({}, "", canonical.toString());
+      }
       const DURATION_MS = 120000;
 
       const frames = {
@@ -552,6 +628,8 @@
         mapa: document.getElementById("frame-mapa"),
       };
       const MESSAGE_ORIGIN = window.location.origin;
+      frames.index.src = `index.html?tv=1&unit=${encodeURIComponent(ACTIVE_UNIT)}`;
+      frames.mapa.src = `mapa.html?tv=1&unit=${encodeURIComponent(ACTIVE_UNIT)}`;
 
       const ready = { index: false, mapa: false };
       let filters = { montadora: "", proprietario: "" };
@@ -559,9 +637,21 @@
       let manageInitDone = false;
       let topInfoHidden = false;
 
+      function markReady(page, source = "message") {
+        if (page !== "index" && page !== "mapa") return;
+        if (!ready[page]) {
+          console.log(`[tv] ${page} pronto via ${source}`);
+        }
+        ready[page] = true;
+        postFilters(page);
+        postTopInfo(page);
+        if (isManualOpen()) updateManualUI();
+        if (isManageOpen()) updateManageUI();
+      }
+
       function readTopInfoHidden() {
         try {
-          return localStorage.getItem("AVANTRAX_TOP_INFO_HIDDEN") === "1";
+          return localStorage.getItem(`AVANTRAX_TOP_INFO_HIDDEN.${ACTIVE_UNIT}`) === "1";
         } catch (_) {
           return false;
         }
@@ -607,17 +697,7 @@
         _client: null,
 
         init() {
-          const url = window.SUPABASE_URL;
-          const key = window.SUPABASE_ANON_KEY;
-          const createClient = window.supabase?.createClient;
-          if (!url || !key || typeof createClient !== "function") return;
-
-          try {
-            this._client = createClient(url, key);
-          } catch (err) {
-            console.warn("[tv][realtime] falha ao criar cliente supabase", err);
-            return;
-          }
+          this._client = supabaseAuth;
 
           if (this.channel) {
             try {
@@ -636,6 +716,8 @@
         },
 
         onEvent(eventRow) {
+          const eventUnit = String(eventRow?.unit_slug || "").trim().toLowerCase();
+          if (eventUnit && eventUnit !== ACTIVE_UNIT) return;
           const version = String(eventRow?.version || "");
           if (version && this.lastVersion === version) return;
           if (version) this.lastVersion = version;
@@ -701,7 +783,7 @@
       function setTopInfoHidden(value) {
         topInfoHidden = !!value;
         try {
-          localStorage.setItem("AVANTRAX_TOP_INFO_HIDDEN", topInfoHidden ? "1" : "0");
+          localStorage.setItem(`AVANTRAX_TOP_INFO_HIDDEN.${ACTIVE_UNIT}`, topInfoHidden ? "1" : "0");
         } catch (_) {}
         Object.keys(frames).forEach((name) => postTopInfo(name));
       }
@@ -817,6 +899,16 @@
           setTopInfoHidden(!topInfoHidden);
           return;
         }
+        if (key === "f9") {
+          e.preventDefault();
+          isManualOpen() ? closeManualNav() : openManualNav();
+          return;
+        }
+        if (key === "f8") {
+          e.preventDefault();
+          isManageOpen() ? closeManage() : openManage();
+          return;
+        }
         if (e.ctrlKey && e.shiftKey && key === "p") {
           e.preventDefault();
           isManualOpen() ? closeManualNav() : openManualNav();
@@ -849,11 +941,7 @@
           return;
         }
         if (data.type === "avantrax:ready" && (data.page === "index" || data.page === "mapa")) {
-          ready[data.page] = true;
-          postFilters(data.page);
-          postTopInfo(data.page);
-          if (isManualOpen()) updateManualUI();
-          if (isManageOpen()) updateManageUI();
+          markReady(data.page, "message");
         }
         if (data.type === "avantrax:data_updated") {
           refreshAllFramesNow("postMessage:data_updated", Date.now());
@@ -885,6 +973,11 @@
           postFilters(name);
           postTopInfo(name);
           postRefresh(name);
+          window.setTimeout(() => {
+            if (!ready[name]) {
+              markReady(name, "load-fallback");
+            }
+          }, 1800);
         });
       });
 
@@ -1269,6 +1362,7 @@
       mgExportList.addEventListener("click", () => activeDataset && exportDatasetToExcel(activeDataset));
 
       manageInitDone = true;
+      })();
     </script>
   </body>
 </html>

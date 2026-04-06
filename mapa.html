@@ -8,6 +8,17 @@
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/css/mapa.css">
+    <script>
+      (function () {
+        try {
+          var qs = new URLSearchParams(window.location.search || "");
+          if (!qs.has("tv")) return;
+          var st = document.createElement("style");
+          st.textContent = "#upload-overlay{display:none!important;opacity:0!important;pointer-events:none!important}#design-root{display:flex!important}";
+          document.head.appendChild(st);
+        } catch (_) {}
+      })();
+    </script>
 </head>
 <body>
 <div class="scan"></div>

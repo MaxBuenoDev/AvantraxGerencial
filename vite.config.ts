@@ -9,6 +9,7 @@ export default defineConfig(() => {
     build: {
       rollupOptions: {
         input: {
+          login: path.resolve(__dirname, 'login.html'),
           index: path.resolve(__dirname, 'index.html'),
           mapa: path.resolve(__dirname, 'mapa.html'),
           tv: path.resolve(__dirname, 'tv.html'),
