@@ -320,7 +320,9 @@
             },
 
             tableForType(type) {
-                return type === 'embarcados' ? 'embarcados_uploads' : 'inventario_uploads';
+                if (type === 'embarcados') return 'embarcados_uploads';
+                if (type === 'mapa_patio') return 'mapa_patio_uploads';
+                return 'inventario_uploads';
             },
 
             safePathSegment(value) {
@@ -1123,21 +1125,28 @@
                 this.stopCountdown();
                 this._embFile = null;
                 this._invFile = null;
+                this._mapaPatioFile = null;
                 document.body.classList.add('upload-mode');
 
                 const inputEmb = document.getElementById('input-embarcados');
                 const inputInv = document.getElementById('input-inventario');
+                const inputMapaPatio = document.getElementById('input-mapa-patio');
                 if (inputEmb) inputEmb.value = '';
                 if (inputInv) inputInv.value = '';
+                if (inputMapaPatio) inputMapaPatio.value = '';
 
                 const boxEmb = document.getElementById('box-embarcados');
                 const boxInv = document.getElementById('box-inventario');
+                const boxMapaPatio = document.getElementById('box-mapa-patio');
                 const labelEmb = document.getElementById('label-embarcados');
                 const labelInv = document.getElementById('label-inventario');
+                const labelMapaPatio = document.getElementById('label-mapa-patio');
                 if (boxEmb) boxEmb.classList.remove('loaded');
                 if (boxInv) boxInv.classList.remove('loaded');
+                if (boxMapaPatio) boxMapaPatio.classList.remove('loaded');
                 if (labelEmb) labelEmb.textContent = 'Clique para selecionar';
                 if (labelInv) labelInv.textContent = 'Clique para selecionar';
+                if (labelMapaPatio) labelMapaPatio.textContent = 'Opcional para Mapa de Estoque';
 
                 const btnStart = document.getElementById('btn-start');
                 if (btnStart) { btnStart.disabled = true; btnStart.textContent = 'INICIAR DASHBOARD'; }
@@ -1296,19 +1305,23 @@
                 const btnStart = document.getElementById('btn-start');
                 const labelEmb = document.getElementById('label-embarcados');
                 const labelInv = document.getElementById('label-inventario');
+                const labelMapaPatio = document.getElementById('label-mapa-patio');
                 const boxEmb = document.getElementById('box-embarcados');
                 const boxInv = document.getElementById('box-inventario');
+                const boxMapaPatio = document.getElementById('box-mapa-patio');
 
                 if (shouldTouchUploadUi) {
                     if (labelEmb) labelEmb.textContent = 'Carregando do Supabase...';
                     if (labelInv) labelInv.textContent = 'Carregando do Supabase...';
+                    if (labelMapaPatio) labelMapaPatio.textContent = 'Carregando do Supabase...';
                     if (btnStart) { btnStart.textContent = 'CARREGANDO...'; btnStart.disabled = true; }
                 }
 
                 try {
-                    const [emb, inv] = await Promise.all([
+                    const [emb, inv, mapaPatio] = await Promise.all([
                         SupabaseStore.downloadLatestFile('embarcados'),
                         SupabaseStore.downloadLatestFile('inventario'),
+                        SupabaseStore.downloadLatestFile('mapa_patio').catch(() => null),
                     ]);
 
                     if (!emb?.blob || !inv?.blob) {
@@ -1316,6 +1329,7 @@
                             if (btnStart) { btnStart.textContent = 'INICIAR DASHBOARD'; btnStart.disabled = true; }
                             if (labelEmb) labelEmb.textContent = 'Clique para selecionar';
                             if (labelInv) labelInv.textContent = 'Clique para selecionar';
+                            if (labelMapaPatio) labelMapaPatio.textContent = 'Opcional para Mapa de Estoque';
                         }
                         return false;
                     }
@@ -1325,6 +1339,12 @@
                         if (boxInv) boxInv.classList.add('loaded');
                         if (labelEmb) labelEmb.textContent = emb?.meta?.file_name || 'embarcados.xlsx';
                         if (labelInv) labelInv.textContent = inv?.meta?.file_name || 'inventario_de_patio.xlsx';
+                        if (mapaPatio?.meta?.file_name) {
+                            if (boxMapaPatio) boxMapaPatio.classList.add('loaded');
+                            if (labelMapaPatio) labelMapaPatio.textContent = mapaPatio.meta.file_name;
+                        } else if (labelMapaPatio) {
+                            labelMapaPatio.textContent = 'Opcional para Mapa de Estoque';
+                        }
                     }
 
                     const [dataEmb, dataInv] = await Promise.all([
@@ -1343,6 +1363,7 @@
                         if (btnStart) { btnStart.textContent = 'INICIAR DASHBOARD'; btnStart.disabled = true; }
                         if (labelEmb) labelEmb.textContent = 'Clique para selecionar';
                         if (labelInv) labelInv.textContent = 'Clique para selecionar';
+                        if (labelMapaPatio) labelMapaPatio.textContent = 'Opcional para Mapa de Estoque';
                     }
                     return false;
                 }
@@ -1362,13 +1383,19 @@
             setupUploadListeners() {
                 const inputEmb = document.getElementById('input-embarcados');
                 const inputInv = document.getElementById('input-inventario');
+                const inputMapaPatio = document.getElementById('input-mapa-patio');
                 const btnStart = document.getElementById('btn-start');
                 this._embFile = null;
                 this._invFile = null;
+                this._mapaPatioFile = null;
 
-                if (!inputEmb || !inputInv || !btnStart) {
+                if (!inputEmb || !inputInv || !btnStart || !inputMapaPatio) {
                     return;
                 }
+
+                const updateStartButtonState = () => {
+                    btnStart.disabled = !(this._embFile && this._invFile);
+                };
 
                 inputEmb.onchange = (e) => {
                     const candidate = e.target.files[0];
@@ -1376,7 +1403,7 @@
                     if (error) {
                         this._embFile = null;
                         e.target.value = '';
-                        btnStart.disabled = true;
+                        updateStartButtonState();
                         const box = document.getElementById('box-embarcados');
                         const lbl = document.getElementById('label-embarcados');
                         if (box) box.classList.remove('loaded');
@@ -1388,8 +1415,8 @@
                     if (candidate) {
                         document.getElementById('box-embarcados').classList.add('loaded');
                         document.getElementById('label-embarcados').textContent = candidate.name;
-                        if (this._embFile && this._invFile) btnStart.disabled = false;
                     }
+                    updateStartButtonState();
                 };
                 inputInv.onchange = (e) => {
                     const candidate = e.target.files[0];
@@ -1397,7 +1424,7 @@
                     if (error) {
                         this._invFile = null;
                         e.target.value = '';
-                        btnStart.disabled = true;
+                        updateStartButtonState();
                         const box = document.getElementById('box-inventario');
                         const lbl = document.getElementById('label-inventario');
                         if (box) box.classList.remove('loaded');
@@ -1409,15 +1436,43 @@
                     if (candidate) {
                         document.getElementById('box-inventario').classList.add('loaded');
                         document.getElementById('label-inventario').textContent = candidate.name;
-                        if (this._embFile && this._invFile) btnStart.disabled = false;
                     }
+                    updateStartButtonState();
+                };
+                inputMapaPatio.onchange = (e) => {
+                    const candidate = e.target.files[0];
+                    if (!candidate) {
+                        this._mapaPatioFile = null;
+                        const box = document.getElementById('box-mapa-patio');
+                        const lbl = document.getElementById('label-mapa-patio');
+                        if (box) box.classList.remove('loaded');
+                        if (lbl) lbl.textContent = 'Opcional para Mapa de Estoque';
+                        return;
+                    }
+                    const error = validateSpreadsheetUpload(candidate, 'Mapa de Pátio');
+                    if (error) {
+                        this._mapaPatioFile = null;
+                        e.target.value = '';
+                        const box = document.getElementById('box-mapa-patio');
+                        const lbl = document.getElementById('label-mapa-patio');
+                        if (box) box.classList.remove('loaded');
+                        if (lbl) lbl.textContent = error;
+                        console.warn('[upload] validação mapa de pátio falhou:', error);
+                        return;
+                    }
+                    this._mapaPatioFile = candidate;
+                    document.getElementById('box-mapa-patio').classList.add('loaded');
+                    document.getElementById('label-mapa-patio').textContent = candidate.name;
                 };
 
                 btnStart.onclick = async () => {
                     const embErr = validateSpreadsheetUpload(this._embFile, 'Embarcados');
                     const invErr = validateSpreadsheetUpload(this._invFile, 'Inventário');
-                    if (embErr || invErr) {
-                        alert(embErr || invErr);
+                    const mapaPatioErr = this._mapaPatioFile
+                        ? validateSpreadsheetUpload(this._mapaPatioFile, 'Mapa de Pátio')
+                        : null;
+                    if (embErr || invErr || mapaPatioErr) {
+                        alert(embErr || invErr || mapaPatioErr);
                         btnStart.disabled = false;
                         btnStart.textContent = "INICIAR DASHBOARD";
                         return;
@@ -1440,9 +1495,15 @@
                                     SupabaseStore.uploadFile('embarcados', this._embFile),
                                     SupabaseStore.uploadFile('inventario', this._invFile),
                                 ]);
+                                if (this._mapaPatioFile) {
+                                    await SupabaseStore.uploadFile('mapa_patio', this._mapaPatioFile);
+                                }
                                 console.log('[upload] upload concluido com sucesso no Supabase (inventario + embarcados)');
                                 try {
-                                    await SupabaseStore.publishDashboardUpdateEvent('inventory_embarcados_upload_completed', `${Date.now()}`);
+                                    const eventType = this._mapaPatioFile
+                                        ? 'inventory_embarcados_mapa_patio_upload_completed'
+                                        : 'inventory_embarcados_upload_completed';
+                                    await SupabaseStore.publishDashboardUpdateEvent(eventType, `${Date.now()}`);
                                 } catch (evtErr) {
                                     console.warn('[realtime] nao foi possivel enviar evento realtime apos upload', evtErr);
                                 }

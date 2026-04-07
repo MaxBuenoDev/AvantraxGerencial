@@ -112,7 +112,9 @@ const SupabaseStore = {
     },
 
     tableForType(type) {
-        return type === 'embarcados' ? 'embarcados_uploads' : 'inventario_uploads';
+        if (type === 'embarcados') return 'embarcados_uploads';
+        if (type === 'mapa_patio') return 'mapa_patio_uploads';
+        return 'inventario_uploads';
     },
 
     safePathSegment(value) {

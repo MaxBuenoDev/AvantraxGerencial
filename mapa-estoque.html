@@ -1,0 +1,114 @@
+﻿<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AVANTRAX | Mapa de Estoque</title>
+  <script src="/supabase-config.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/mapa-estoque.css" />
+</head>
+<body>
+  <div id="filters-hotspot" title="Filtros"></div>
+  <div class="stock-page">
+    <header class="stock-header">
+      <div class="hdr-left">
+        <h2>AVANTRAX</h2>
+        <div class="hdr-sep"></div>
+        <span>DASHBOARD ESTOQUE</span>
+      </div>
+      <div class="hdr-right">
+        <div id="current-time">00:00:00</div>
+        <div id="current-date">--</div>
+      </div>
+    </header>
+
+    <main class="stock-main">
+      <section class="fixed-left card-shell">
+        <div class="left-brand">
+          <img src="/logoTegma.png" alt="Tegma GestÃ£o LogÃ­stica" />
+        </div>
+        <div class="left-total">
+          <div class="left-total-label">Total VeÃ­culos no PÃ¡tio</div>
+          <div class="left-total-value" id="kpi-total-veiculos">0</div>
+        </div>
+        <div class="left-dep-rail" id="dep-rail">
+          <div class="empty">Carregando departamentos...</div>
+        </div>
+      </section>
+
+      <section class="rotating-right">
+        <article class="blocks-zone card-shell">
+          <div class="blocks-headline">
+            <h3 class="card-title">Departamentos</h3>
+            <div class="dept-head-right">
+              <button class="strip-tab active" id="unit-pill" type="button">Unidade: --</button>
+              <div id="dept-current-label" class="realtime-pill">--</div>
+              <div id="dept-dots" class="dept-dots"></div>
+            </div>
+          </div>
+          <div id="blocks-grid" class="stock-blocks-grid">
+            <div class="empty">Carregando mapa...</div>
+          </div>
+        </article>
+      </section>
+    </main>
+  </div>
+
+  <aside id="filters-panel" aria-hidden="true">
+    <div class="fp-head">
+      <strong>Filtros</strong>
+      <button id="filters-close" type="button">âœ•</button>
+    </div>
+    <div class="fp-row">
+      <label>Montadora</label>
+      <select id="filter-montadora"></select>
+    </div>
+    <div class="fp-row">
+      <label>Proprietario</label>
+      <select id="filter-proprietario"></select>
+    </div>
+    <div class="fp-actions">
+      <button id="filters-clear" type="button">Limpar</button>
+      <button id="filters-apply" type="button">Aplicar</button>
+    </div>
+    <div class="fp-actions">
+      <button id="layout-edit-open" type="button">Editar layout (Ctrl+Shift+E)</button>
+    </div>
+    <small>Atalho: Ctrl+Shift+F</small>
+  </aside>
+
+  <div id="layout-edit-modal" aria-hidden="true">
+    <div class="lem-card">
+      <div class="lem-head">
+        <strong>Modo Edicao de Layout</strong>
+        <button id="layout-edit-close" type="button">Fechar</button>
+      </div>
+      <div class="lem-tools">
+        <label class="toggle-line">
+          <input id="toggle-hide-non-sellable" type="checkbox" />
+          <span>Ocultar areas nao vendaveis por padrao</span>
+        </label>
+        <label class="lem-select-line" for="layout-rotate-seconds">
+          <span>Tempo de mudanca dos blocos</span>
+          <select id="layout-rotate-seconds">
+            <option value="15">15 seg</option>
+            <option value="20">20 seg</option>
+            <option value="30">30 seg</option>
+            <option value="40">40 seg</option>
+          </select>
+        </label>
+      </div>
+      <div id="layout-edit-list" class="lem-list"></div>
+      <div class="lem-foot">
+        <button id="layout-edit-reset" type="button">Resetar visibilidade</button>
+      </div>
+    </div>
+  </div>
+  <script type="module" src="/js/mapa-estoque.js"></script>
+</body>
+</html>
+
+
+

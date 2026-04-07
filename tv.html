@@ -468,6 +468,7 @@
         </div>
         <div class="actions">
           <button class="mn-btn" id="mn-time-toggle" type="button">Pausar tempo</button>
+          <button class="mn-btn" id="mn-open-estoque" type="button">Abrir mapa de estoque</button>
           <button class="mn-btn" id="mn-close" type="button">Fechar</button>
           <button class="mn-btn primary" id="mn-go" type="button">Ir para próxima</button>
         </div>
@@ -837,6 +838,7 @@
       const mnCurrent = document.getElementById("mn-current");
       const mnNext = document.getElementById("mn-next");
       const mnTimeToggle = document.getElementById("mn-time-toggle");
+      const mnOpenEstoque = document.getElementById("mn-open-estoque");
       const mnClose = document.getElementById("mn-close");
       const mnGo = document.getElementById("mn-go");
 
@@ -885,11 +887,22 @@
         if (autoSwitchEnabled) scheduleSwitch(DURATION_MS);
       }
 
+      function openStockMapInNewTab() {
+        const target = `mapa-estoque.html?unit=${encodeURIComponent(ACTIVE_UNIT)}`;
+        const opened = window.open(target, "_blank", "noopener,noreferrer");
+        if (!opened) {
+          alert("Nao foi possivel abrir a nova guia. Verifique se o bloqueador de pop-up esta ativo.");
+          return;
+        }
+        closeManualNav();
+      }
+
       manualOverlay.addEventListener("click", (e) => {
         if (e.target === manualOverlay) closeManualNav();
       });
       mnClose.addEventListener("click", closeManualNav);
       mnGo.addEventListener("click", goNextManual);
+      mnOpenEstoque.addEventListener("click", openStockMapInNewTab);
       mnTimeToggle.addEventListener("click", () => setAutoSwitchEnabled(!autoSwitchEnabled));
 
       window.addEventListener("keydown", (e) => {

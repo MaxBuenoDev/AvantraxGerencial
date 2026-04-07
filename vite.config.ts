@@ -12,6 +12,7 @@ export default defineConfig(() => {
           login: path.resolve(__dirname, 'login.html'),
           index: path.resolve(__dirname, 'index.html'),
           mapa: path.resolve(__dirname, 'mapa.html'),
+          mapaEstoque: path.resolve(__dirname, 'mapa-estoque.html'),
           tv: path.resolve(__dirname, 'tv.html'),
         },
       },
