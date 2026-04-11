@@ -11,49 +11,51 @@
 </head>
 <body>
   <div id="filters-hotspot" title="Filtros"></div>
-  <div class="stock-page">
-    <header class="stock-header">
-      <div class="hdr-left">
-        <h2>AVANTRAX</h2>
-        <div class="hdr-sep"></div>
-        <span>DASHBOARD ESTOQUE</span>
-      </div>
-      <div class="hdr-right">
-        <div id="current-time">00:00:00</div>
-        <div id="current-date">--</div>
-      </div>
-    </header>
+  <div id="design-root">
+    <div class="stock-page">
+      <header class="stock-header">
+        <div class="hdr-left">
+          <h2>AVANTRAX</h2>
+          <div class="hdr-sep"></div>
+          <span>DASHBOARD ESTOQUE</span>
+        </div>
+        <div class="hdr-right">
+          <div id="current-time">00:00:00</div>
+          <div id="current-date">--</div>
+        </div>
+      </header>
 
-    <main class="stock-main">
-      <section class="fixed-left card-shell">
-        <div class="left-brand">
-          <img src="/logoTegma.png" alt="Tegma GestÃ£o LogÃ­stica" />
-        </div>
-        <div class="left-total">
-          <div class="left-total-label">Total VeÃ­culos no PÃ¡tio</div>
-          <div class="left-total-value" id="kpi-total-veiculos">0</div>
-        </div>
-        <div class="left-dep-rail" id="dep-rail">
-          <div class="empty">Carregando departamentos...</div>
-        </div>
-      </section>
+      <main class="stock-main">
+        <section class="fixed-left card-shell">
+          <div class="left-brand">
+            <img src="/logoTegma.png" alt="Tegma GestÃ£o LogÃ­stica" />
+          </div>
+          <div class="left-total">
+            <div class="left-total-label">Total VeÃ­culos no PÃ¡tio</div>
+            <div class="left-total-value" id="kpi-total-veiculos">0</div>
+          </div>
+          <div class="left-dep-rail" id="dep-rail">
+            <div class="empty">Carregando departamentos...</div>
+          </div>
+        </section>
 
-      <section class="rotating-right">
-        <article class="blocks-zone card-shell">
-          <div class="blocks-headline">
-            <h3 class="card-title">Departamentos</h3>
-            <div class="dept-head-right">
-              <button class="strip-tab active" id="unit-pill" type="button">Unidade: --</button>
-              <div id="dept-current-label" class="realtime-pill">--</div>
-              <div id="dept-dots" class="dept-dots"></div>
+        <section class="rotating-right">
+          <article class="blocks-zone card-shell">
+            <div class="blocks-headline">
+              <h3 class="card-title">Departamentos</h3>
+              <div class="dept-head-right">
+                <button class="strip-tab active" id="unit-pill" type="button">Unidade: --</button>
+                <div id="dept-current-label" class="realtime-pill">--</div>
+                <div id="dept-dots" class="dept-dots"></div>
+              </div>
             </div>
-          </div>
-          <div id="blocks-grid" class="stock-blocks-grid">
-            <div class="empty">Carregando mapa...</div>
-          </div>
-        </article>
-      </section>
-    </main>
+            <div id="blocks-grid" class="stock-blocks-grid">
+              <div class="empty">Carregando mapa...</div>
+            </div>
+          </article>
+        </section>
+      </main>
+    </div>
   </div>
 
   <aside id="filters-panel" aria-hidden="true">
@@ -68,6 +70,34 @@
     <div class="fp-row">
       <label>Proprietario</label>
       <select id="filter-proprietario"></select>
+    </div>
+    <div class="fp-row">
+      <label>Zoom</label>
+      <div class="fp-range-line">
+        <input id="tune-scale" type="range" min="80" max="100" step="1" value="100" />
+        <div id="tune-scale-val">100%</div>
+      </div>
+    </div>
+    <div class="fp-row">
+      <label>Subir</label>
+      <div class="fp-range-line">
+        <input id="tune-offsety" type="range" min="-180" max="180" step="5" value="0" />
+        <div id="tune-offsety-val">0</div>
+      </div>
+    </div>
+    <div class="fp-row">
+      <label>Largura</label>
+      <div class="fp-range-line">
+        <input id="tune-width" type="range" min="80" max="120" step="1" value="100" />
+        <div id="tune-width-val">100%</div>
+      </div>
+    </div>
+    <div class="fp-row">
+      <label>Comprimento</label>
+      <div class="fp-range-line">
+        <input id="tune-height" type="range" min="80" max="130" step="1" value="100" />
+        <div id="tune-height-val">100%</div>
+      </div>
     </div>
     <div class="fp-actions">
       <button id="filters-clear" type="button">Limpar</button>

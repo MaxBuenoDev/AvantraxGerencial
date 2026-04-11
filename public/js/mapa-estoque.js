@@ -9,6 +9,7 @@ const supabase = AUTH_CTX.supabase;
 const STORAGE_KEYS = {
   filters: makeUnitScopedKey("avantrax.estoque.filters.v1", ACTIVE_UNIT),
   layout: makeUnitScopedKey("avantrax.estoque.layout.v1", ACTIVE_UNIT),
+  viewportTune: makeUnitScopedKey("avantrax.estoque.viewport.tune.v1", ACTIVE_UNIT),
 };
 const ROTATION_OPTIONS_SECONDS = [15, 20, 30, 40];
 const DEFAULT_ROTATION_SECONDS = 15;
@@ -20,6 +21,7 @@ const SELLABLE_AREAS = {
 };
 
 const els = {
+  designRoot: document.getElementById("design-root"),
   unitPill: document.getElementById("unit-pill"),
   lastUpdate: document.getElementById("last-update"),
   currentTime: document.getElementById("current-time"),
@@ -55,6 +57,14 @@ const els = {
   filtersApply: document.getElementById("filters-apply"),
   filtersClear: document.getElementById("filters-clear"),
   layoutEditOpen: document.getElementById("layout-edit-open"),
+  tuneScale: document.getElementById("tune-scale"),
+  tuneScaleVal: document.getElementById("tune-scale-val"),
+  tuneOffsetY: document.getElementById("tune-offsety"),
+  tuneOffsetYVal: document.getElementById("tune-offsety-val"),
+  tuneWidth: document.getElementById("tune-width"),
+  tuneWidthVal: document.getElementById("tune-width-val"),
+  tuneHeight: document.getElementById("tune-height"),
+  tuneHeightVal: document.getElementById("tune-height-val"),
 
   layoutModal: document.getElementById("layout-edit-modal"),
   layoutClose: document.getElementById("layout-edit-close"),
@@ -90,6 +100,120 @@ function getRotationMs() {
   const safe = ROTATION_OPTIONS_SECONDS.includes(sec) ? sec : DEFAULT_ROTATION_SECONDS;
   return safe * 1000;
 }
+
+const ViewportScale = {
+  designWidth: 1920,
+  designHeight: 1080,
+  _pendingRaf: 0,
+  tune: { scalePct: 100, offsetY: 0, widthPct: 100, heightPct: 100 },
+
+  loadTune() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEYS.viewportTune);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== "object") return;
+      const scalePct = Number(parsed.scalePct);
+      const offsetY = Number(parsed.offsetY);
+      const widthPct = Number(parsed.widthPct);
+      const heightPct = Number(parsed.heightPct);
+      if (Number.isFinite(scalePct)) this.tune.scalePct = Math.min(100, Math.max(80, Math.round(scalePct)));
+      if (Number.isFinite(offsetY)) this.tune.offsetY = Math.min(180, Math.max(-180, Math.round(offsetY)));
+      if (Number.isFinite(widthPct)) this.tune.widthPct = Math.min(120, Math.max(80, Math.round(widthPct)));
+      if (Number.isFinite(heightPct)) this.tune.heightPct = Math.min(130, Math.max(80, Math.round(heightPct)));
+    } catch (_) {}
+  },
+
+  persistTune() {
+    try { localStorage.setItem(STORAGE_KEYS.viewportTune, JSON.stringify(this.tune)); } catch (_) {}
+  },
+
+  setTune(next) {
+    if (next && typeof next === "object") {
+      if (next.scalePct !== undefined) {
+        const v = Number(next.scalePct);
+        if (Number.isFinite(v)) this.tune.scalePct = Math.min(100, Math.max(80, Math.round(v)));
+      }
+      if (next.offsetY !== undefined) {
+        const v = Number(next.offsetY);
+        if (Number.isFinite(v)) this.tune.offsetY = Math.min(180, Math.max(-180, Math.round(v)));
+      }
+      if (next.widthPct !== undefined) {
+        const v = Number(next.widthPct);
+        if (Number.isFinite(v)) this.tune.widthPct = Math.min(120, Math.max(80, Math.round(v)));
+      }
+      if (next.heightPct !== undefined) {
+        const v = Number(next.heightPct);
+        if (Number.isFinite(v)) this.tune.heightPct = Math.min(130, Math.max(80, Math.round(v)));
+      }
+    }
+    this.persistTune();
+    this.apply();
+  },
+
+  apply() {
+    const root = els.designRoot;
+    if (!root) return;
+    const viewport = window.visualViewport || null;
+    const vw = (viewport && viewport.width) ? viewport.width : window.innerWidth;
+    const vh = (viewport && viewport.height) ? viewport.height : window.innerHeight;
+    const vpLeft = viewport && typeof viewport.offsetLeft === "number" ? viewport.offsetLeft : 0;
+    const vpTop = viewport && typeof viewport.offsetTop === "number" ? viewport.offsetTop : 0;
+
+    const base = Math.min(vw / this.designWidth, vh / this.designHeight);
+    const safeBase = Number.isFinite(base) && base > 0 ? base : 1;
+    const tuneScale = (this.tune.scalePct || 100) / 100;
+    const desiredScaleX = safeBase * tuneScale * ((this.tune.widthPct || 100) / 100);
+    const desiredScaleY = safeBase * tuneScale * ((this.tune.heightPct || 100) / 100);
+
+    const setScaleAndCenter = (scaleX, scaleY) => {
+      document.documentElement.style.setProperty("--ui-scale", String(scaleY));
+      document.documentElement.style.setProperty("--ui-scale-x", String(scaleX));
+      const offsetX = Math.max(0, (vw - this.designWidth * scaleX) / 2);
+      const offsetY = Math.max(0, (vh - this.designHeight * scaleY) / 2) + (this.tune.offsetY || 0) * scaleY;
+      root.style.left = `${Math.floor(offsetX + vpLeft)}px`;
+      root.style.top = `${Math.floor(offsetY + vpTop)}px`;
+    };
+
+    setScaleAndCenter(desiredScaleX, desiredScaleY);
+
+    if (this._pendingRaf) cancelAnimationFrame(this._pendingRaf);
+    this._pendingRaf = requestAnimationFrame(() => {
+      this._pendingRaf = 0;
+      const rect = root.getBoundingClientRect();
+      const overflowX = rect.right - (vpLeft + vw);
+      const overflowY = rect.bottom - (vpTop + vh);
+      if (overflowX <= 0.5 && overflowY <= 0.5) return;
+      const fitX = overflowX > 0.5 ? (vw / Math.max(1, rect.width)) * 0.992 : 1;
+      const fitY = overflowY > 0.5 ? (vh / Math.max(1, rect.height)) * 0.992 : 1;
+      const nextScaleX = Number.isFinite(desiredScaleX * fitX) && desiredScaleX * fitX > 0 ? desiredScaleX * fitX : desiredScaleX;
+      const nextScaleY = Number.isFinite(desiredScaleY * fitY) && desiredScaleY * fitY > 0 ? desiredScaleY * fitY : desiredScaleY;
+      setScaleAndCenter(nextScaleX, nextScaleY);
+    });
+  },
+
+  syncUi() {
+    if (els.tuneScale) els.tuneScale.value = String(this.tune.scalePct ?? 100);
+    if (els.tuneScaleVal) els.tuneScaleVal.textContent = `${this.tune.scalePct ?? 100}%`;
+    if (els.tuneOffsetY) els.tuneOffsetY.value = String(this.tune.offsetY ?? 0);
+    if (els.tuneOffsetYVal) els.tuneOffsetYVal.textContent = String(this.tune.offsetY ?? 0);
+    if (els.tuneWidth) els.tuneWidth.value = String(this.tune.widthPct ?? 100);
+    if (els.tuneWidthVal) els.tuneWidthVal.textContent = `${this.tune.widthPct ?? 100}%`;
+    if (els.tuneHeight) els.tuneHeight.value = String(this.tune.heightPct ?? 100);
+    if (els.tuneHeightVal) els.tuneHeightVal.textContent = `${this.tune.heightPct ?? 100}%`;
+  },
+
+  init() {
+    this.loadTune();
+    this.apply();
+    this.syncUi();
+    window.addEventListener("resize", () => this.apply(), { passive: true });
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener("resize", () => this.apply(), { passive: true });
+      window.visualViewport.addEventListener("scroll", () => this.apply(), { passive: true });
+    }
+  },
+};
 
 function formatDateTime(v) {
   if (!v) return "--";
@@ -600,22 +724,46 @@ function renderCurrentDepartment(byDepInput = null) {
     areas.map((b, index) => {
       const forcedBlocked = b.blocked > 0 && b.occupied === 0 && b.free === 0;
       const tone = forcedBlocked ? "red" : occupancyTone(b.pct);
-      const label = forcedBlocked ? "BLOQUEADO" : (tone === "green" ? "LIVRE" : tone === "yellow" ? "ATENCAO" : "LOTADO");
+      const label = forcedBlocked ? "BLOQUEADO" : (tone === "green" ? "LIVRE" : tone === "yellow" ? "ATENCAO" : "CRITICO");
       const criticalClass = tone === "red" ? " is-critical" : "";
+      const ringSize = 132;
+      const ringStroke = 12;
+      const ringRadius = (ringSize / 2) - ringStroke;
+      const ringCirc = 2 * Math.PI * ringRadius;
+      const ringPct = Math.max(0, Math.min(100, Number(b.pct) || 0));
+      const ringOffset = ringCirc - ((ringPct / 100) * ringCirc);
       return `
       <article class="block-card tone-${tone} is-enter${criticalClass}" style="--stagger:${index}">
         <div class="block-top">
           <div class="block-name">${escapeHtml(b.area)}</div>
           <div class="tag ${tone}">${label}</div>
         </div>
-        <div class="pct">${b.pct}%</div>
-        <div class="bar"><span class="${tone}" style="width:${Math.max(0, Math.min(100, b.pct))}%"></span></div>
-        <div class="mini">
-          <span>${b.occupied.toLocaleString("pt-BR")} ocup.</span>
-          <span>${b.free.toLocaleString("pt-BR")} livres</span>
-          <span>${b.blocked.toLocaleString("pt-BR")} bloq.</span>
+        <div class="ring-wrap">
+          <svg class="ring-chart" viewBox="0 0 ${ringSize} ${ringSize}" aria-hidden="true">
+            <circle class="ring-track" cx="${ringSize / 2}" cy="${ringSize / 2}" r="${ringRadius}"></circle>
+            <circle class="ring-progress ${tone}" cx="${ringSize / 2}" cy="${ringSize / 2}" r="${ringRadius}"
+              style="stroke-dasharray:${ringCirc};stroke-dashoffset:${ringOffset};"></circle>
+          </svg>
+          <div class="ring-center">
+            <strong>${ringPct}%</strong>
+            <small>OCUPADO</small>
+          </div>
         </div>
-        <div class="mini mini-total"><span>Total</span><span>${b.capacity.toLocaleString("pt-BR")} vagas</span></div>
+        <div class="metrics-row">
+          <div class="metric-cell">
+            <strong>${b.occupied.toLocaleString("pt-BR")}</strong>
+            <span>Ocupado</span>
+          </div>
+          <div class="metric-cell metric-muted">
+            <strong>${b.blocked.toLocaleString("pt-BR")}</strong>
+            <span>Bloqueado</span>
+          </div>
+        </div>
+        <div class="metric-wide metric-ok">
+          <strong>${b.free.toLocaleString("pt-BR")}</strong>
+          <span>Livre</span>
+        </div>
+        <div class="mini-total"><span>Total</span><span>${b.capacity.toLocaleString("pt-BR")} vagas</span></div>
       </article>`;
     }).join("")
   }</section>`;
@@ -674,6 +822,7 @@ function openFilters() {
   if (!els.filtersPanel) return;
   fillSelect(els.filterMontadora, state.options.montadoras, state.filters.montadora);
   fillSelect(els.filterProprietario, state.options.proprietarios, state.filters.proprietario);
+  ViewportScale.syncUi();
   els.filtersPanel.classList.add("open");
   els.filtersPanel.setAttribute("aria-hidden", "false");
 }
@@ -758,6 +907,32 @@ function wireShortcuts() {
       toggleFilters();
       return;
     }
+    if (els.filtersPanel?.classList.contains("open")) {
+      if (key === "-" || key === "_") {
+        e.preventDefault();
+        ViewportScale.setTune({ scalePct: (ViewportScale.tune.scalePct ?? 100) - 2 });
+        ViewportScale.syncUi();
+        return;
+      }
+      if (key === "=" || key === "+") {
+        e.preventDefault();
+        ViewportScale.setTune({ scalePct: (ViewportScale.tune.scalePct ?? 100) + 2 });
+        ViewportScale.syncUi();
+        return;
+      }
+      if (key === "arrowup") {
+        e.preventDefault();
+        ViewportScale.setTune({ offsetY: (ViewportScale.tune.offsetY ?? 0) - 10 });
+        ViewportScale.syncUi();
+        return;
+      }
+      if (key === "arrowdown") {
+        e.preventDefault();
+        ViewportScale.setTune({ offsetY: (ViewportScale.tune.offsetY ?? 0) + 10 });
+        ViewportScale.syncUi();
+        return;
+      }
+    }
     if (e.ctrlKey && e.shiftKey && key === "e") {
       e.preventDefault();
       if (els.layoutModal?.classList.contains("open")) closeLayoutEditor();
@@ -817,6 +992,20 @@ function wireUi() {
       recomputeAndRender();
     });
   }
+
+  const applyTune = () => {
+    ViewportScale.setTune({
+      scalePct: els.tuneScale ? Number(els.tuneScale.value) : ViewportScale.tune.scalePct,
+      offsetY: els.tuneOffsetY ? Number(els.tuneOffsetY.value) : ViewportScale.tune.offsetY,
+      widthPct: els.tuneWidth ? Number(els.tuneWidth.value) : ViewportScale.tune.widthPct,
+      heightPct: els.tuneHeight ? Number(els.tuneHeight.value) : ViewportScale.tune.heightPct,
+    });
+    ViewportScale.syncUi();
+  };
+  if (els.tuneScale) els.tuneScale.addEventListener("input", applyTune, { passive: true });
+  if (els.tuneOffsetY) els.tuneOffsetY.addEventListener("input", applyTune, { passive: true });
+  if (els.tuneWidth) els.tuneWidth.addEventListener("input", applyTune, { passive: true });
+  if (els.tuneHeight) els.tuneHeight.addEventListener("input", applyTune, { passive: true });
 
   if (els.layoutEditOpen) els.layoutEditOpen.addEventListener("click", openLayoutEditor);
   if (els.layoutClose) els.layoutClose.addEventListener("click", closeLayoutEditor);
@@ -999,6 +1188,7 @@ function initRealtime() {
 
 readFilters();
 readLayoutPrefs();
+ViewportScale.init();
 wireUi();
 wireShortcuts();
 startClock();
